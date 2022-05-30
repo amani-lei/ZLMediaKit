@@ -29,8 +29,8 @@ void CommonRtpDecoder::obtainFrame() {
 }
 DahuaRtpDecoder::DahuaRtpDecoder(CodecId codec, size_t max_frame_size)
     : CommonRtpDecoder(codec, max_frame_size) {
-        temp_buffer.reserve(1024*1024*5);
-    }
+    temp_buffer.reserve(1024 * 1024 * 5);
+}
 
 bool CommonRtpDecoder::inputRtp(const RtpPacket::Ptr &rtp, bool) {
     auto payload_size = rtp->getPayloadSize();
@@ -114,10 +114,9 @@ void DahuaRtpDecoder::repacket_ps() {
             break;
         }
         nalu_end = find_nalu_end(nalu_start + 4, ptr + len - 1);
-        printf("nalu type == %x\n", nalu_start[4] & 0x1f);
         switch (nalu_start[4] & 0x1f) {
         case 7: // sps
-        {   
+        {
             sps.resize(nalu_end - nalu_start + 1);
             memcpy((uint8_t *)sps.data(), nalu_start, sps.size());
             break;
@@ -129,8 +128,7 @@ void DahuaRtpDecoder::repacket_ps() {
             break;
         }
         //不处理的包
-        case 6:
-        {
+        case 6: {
             break;
         }
         // break;
@@ -147,12 +145,14 @@ void DahuaRtpDecoder::repacket_ps() {
     }
     //封装成ps
     size_t ps_size = 0;
-    uint8_t *ps_ptr = (uint8_t*)temp_buffer.data();
+    uint8_t *ps_ptr = (uint8_t *)temp_buffer.data();
     //添加ps头
     ps_size += gb28181_make_ps_header(ps_ptr + ps_size, ssrc);
     for (auto &nalu : other_nalu) {
         //如果是关键帧,在前面添加sps和pps
         if ((nalu[4] & 0x1f) == 5) {
+            //添加sys
+            ps_size += gb28181_make_sys_header(ps_ptr + ps_size);
             //添加sps
             ps_size += gb28181_make_psm_header(ps_ptr + ps_size);
             ps_size += gb28181_make_pes_header(ps_ptr + ps_size, 0xe0, sps.size(), timestamp, 0);
@@ -165,35 +165,54 @@ void DahuaRtpDecoder::repacket_ps() {
             ps_size += pps.size();
         }
         //添加本nalu
-        ps_size += gb28181_make_pes_header(ps_ptr + ps_size, 0xe0, nalu.size(), timestamp, 0);
-        memcpy(ps_ptr + ps_size, nalu.data(), nalu.size());
-        ps_size += nalu.size();
+        size_t left_size = nalu.size();
+        size_t read_pos = 0;
+        while(left_size > 0){
+const size_t ONCE_SIZE = 50000;
+            if(left_size >= ONCE_SIZE){
+                ps_size += gb28181_make_pes_header(ps_ptr + ps_size, 0xe0, ONCE_SIZE, timestamp, 0);
+                memcpy(ps_ptr + ps_size, nalu.data() + read_pos, ONCE_SIZE);
+                ps_size += ONCE_SIZE;
+                left_size -= ONCE_SIZE;
+                read_pos += ONCE_SIZE;
+            }else{
+                ps_size += gb28181_make_pes_header(ps_ptr + ps_size, 0xe0, left_size, timestamp, 0);
+                memcpy(ps_ptr + ps_size, nalu.data() + read_pos, left_size);
+                ps_size += left_size;
+                read_pos += left_size;
+                left_size = 0;
+                break;
+            }
+        }
     }
+    
     ps_buffer.clear();
-    ps_buffer.append(temp_buffer.data(), ps_size);
+    ps_buffer.resize(ps_size);
+    memcpy((char*)ps_buffer.data(), (char*)temp_buffer.data(), ps_size);
     buffer.clear();
-    // return false;
 }
 
 bool DahuaRtpDecoder::inputRtp(const RtpPacket::Ptr &rtp, bool) {
+    static uint32_t last_seq = rtp->getSeq();
+    uint32_t xx = rtp->getSeq() - last_seq;
+    if(xx != 1)
+        printf("sql \n");
+    
+    last_seq = rtp->getSeq();
     uint8_t *pl = rtp->getPayload();
     bool dh_frame_end = false;
     timestamp = rtp->getStampMS();
     size_t rtp_pl_size = rtp->getPayloadSize();
-    if(memcmp(pl, "HVAG", 4) == 0){
+    
+    if (memcmp(pl, "HVAG", 4) == 0) {
         return false;
-    }
-    else
-    if (memcmp(pl, "DHAV", 4) == 0) {
+    } else if (memcmp(pl, "DHAV", 4) == 0) {
         //以DHAV开始的包
         if (pl[4] != 0xfd && pl[4] != 0xfc) {
             return false;
         }
         //并且以dhav结束的包
         if (memcmp(pl + rtp_pl_size - 8, "dhav", 4) == 0) {
-            if(rtp->getHeader()->padding){
-                printf("padding rtp packet\n");
-            }
             buffer.append((char *)pl + 44, rtp_pl_size - 44 - 8);
             dh_frame_end = true;
         } else {
@@ -202,56 +221,22 @@ bool DahuaRtpDecoder::inputRtp(const RtpPacket::Ptr &rtp, bool) {
     } else {
         //不以DHAV开始,但以dhav结束的包
         if (memcmp(pl + rtp_pl_size - 8, "dhav", 4) == 0) {
-            if(rtp->getHeader()->padding){
-                    printf("padding rtp packet\n");
-            }
             buffer.append((char *)pl, rtp_pl_size - 8);
             dh_frame_end = true;
         } else {
             buffer.append((char *)pl, rtp_pl_size);
         }
     }
-
+    
     if (!dh_frame_end) {
         return false; //未到一帧结束,等待结尾
     }
-    static FILE * f = fopen("out.h264", "wb");
-    if(f){
-        printf("write to out.h264\n");
-        fwrite(buffer.data(), 1, buffer.size(), f);
-    }
     repacket_ps();
     obtainFrame();
+    
     _frame->_dts = timestamp;
     _frame->_buffer = ps_buffer;
-    RtpCodec::inputFrame(_frame);
 
-    // auto payload = rtp->getPayload();
-    // auto stamp = rtp->getStampMS();
-    // auto seq = rtp->getSeq();
-    //
-    // if (_frame->_dts != stamp || _frame->_buffer.size() > _max_frame_size) {
-    //     //时间戳发生变化或者缓存超过MAX_FRAME_SIZE，则清空上帧数据
-    //     if (!_frame->_buffer.empty()) {
-    //         //有有效帧，则输出
-    //         RtpCodec::inputFrame(_frame);
-    //     }
-    //
-    //     //新的一帧数据
-    //     obtainFrame();
-    //     _frame->_dts = stamp;
-    //     _drop_flag = false;
-    // } else if (_last_seq != 0 && (uint16_t)(_last_seq + 1) != seq) {
-    //     //时间戳未发生变化，但是seq却不连续，说明中间rtp丢包了，那么整帧应该废弃
-    //     WarnL << "rtp丢包:" << _last_seq << " -> " << seq;
-    //     _drop_flag = true;
-    //     _frame->_buffer.clear();
-    // }
-    //
-    // if (!_drop_flag) {
-    //     _frame->_buffer.append((char *)payload, payload_size);
-    // }
-    //
-    //_last_seq = seq;
+    RtpCodec::inputFrame(_frame);
     return false;
 }

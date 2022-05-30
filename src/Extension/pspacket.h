@@ -88,7 +88,7 @@ inline int gb28181_make_sys_header(uint8_t *pData)
     memset(bitsBuffer.p_data, 0, SYS_HDR_LEN);
     /*system header*/
     bits_write( &bitsBuffer, 32, 0x000001BB);    /*start code*/
-    bits_write( &bitsBuffer, 16, SYS_HDR_LEN-6);/*header_length*/
+    bits_write( &bitsBuffer, 16, SYS_HDR_LEN-6 - 3);/*header_length*/
     bits_write( &bitsBuffer, 1,     1);         /*marker_bit*/
     bits_write( &bitsBuffer, 22, 50000);        /*rate_bound*/
     bits_write( &bitsBuffer, 1,  1);            /*marker_bit*/
@@ -101,17 +101,42 @@ inline int gb28181_make_sys_header(uint8_t *pData)
     bits_write( &bitsBuffer, 5,  1);            /*video_bound*/
     bits_write( &bitsBuffer, 1,  0);            /*dif from mpeg1*/
     bits_write( &bitsBuffer, 7,  0x7F);         /*reserver*/
-    /*audio stream bound*/
-    bits_write( &bitsBuffer, 8,  0xC0);         /*stream_id*/
-    bits_write( &bitsBuffer, 2,  3);            /*marker_bit */
-    bits_write( &bitsBuffer, 1,  0);            /*PSTD_buffer_bound_scale*/
-    bits_write( &bitsBuffer, 13, 512);          /*PSTD_buffer_size_bound*/
+    // /*audio stream bound*/
+    // bits_write( &bitsBuffer, 8,  0xC0);         /*stream_id*/
+    // bits_write( &bitsBuffer, 2,  3);            /*marker_bit */
+    // bits_write( &bitsBuffer, 1,  0);            /*PSTD_buffer_bound_scale*/
+    // bits_write( &bitsBuffer, 13, 512);          /*PSTD_buffer_size_bound*/
     /*video stream bound*/
     bits_write( &bitsBuffer, 8,  0xE0);         /*stream_id*/
     bits_write( &bitsBuffer, 2,  3);            /*marker_bit */
     bits_write( &bitsBuffer, 1,  1);            /*PSTD_buffer_bound_scale*/
     bits_write( &bitsBuffer, 13, 2048);         /*PSTD_buffer_size_bound*/
-    return SYS_HDR_LEN;
+
+    // bits_write( &bitsBuffer, 32, 0x000001BB);    /*start code*/
+    // bits_write( &bitsBuffer, 16, SYS_HDR_LEN-6);/*header_length*/
+    // bits_write( &bitsBuffer, 1,     1);         /*marker_bit*/
+    // bits_write( &bitsBuffer, 22, 50000);        /*rate_bound*/
+    // bits_write( &bitsBuffer, 1,  1);            /*marker_bit*/
+    // bits_write( &bitsBuffer, 6,  1);            /*audio_bound*/
+    // bits_write( &bitsBuffer, 1,  0);            /*fixed_flag */
+    // bits_write( &bitsBuffer, 1,  1);            /*CSPS_flag */
+    // bits_write( &bitsBuffer, 1,  1);            /*system_audio_lock_flag*/
+    // bits_write( &bitsBuffer, 1,  1);            /*system_video_lock_flag*/
+    // bits_write( &bitsBuffer, 1,  1);            /*marker_bit*/
+    // bits_write( &bitsBuffer, 5,  1);            /*video_bound*/
+    // bits_write( &bitsBuffer, 1,  0);            /*dif from mpeg1*/
+    // bits_write( &bitsBuffer, 7,  0x7F);         /*reserver*/
+    // /*audio stream bound*/
+    // bits_write( &bitsBuffer, 8,  0xC0);         /*stream_id*/
+    // bits_write( &bitsBuffer, 2,  3);            /*marker_bit */
+    // bits_write( &bitsBuffer, 1,  0);            /*PSTD_buffer_bound_scale*/
+    // bits_write( &bitsBuffer, 13, 512);          /*PSTD_buffer_size_bound*/
+    // /*video stream bound*/
+    // bits_write( &bitsBuffer, 8,  0xE0);         /*stream_id*/
+    // bits_write( &bitsBuffer, 2,  3);            /*marker_bit */
+    // bits_write( &bitsBuffer, 1,  1);            /*PSTD_buffer_bound_scale*/
+    // bits_write( &bitsBuffer, 13, 2048);         /*PSTD_buffer_size_bound*/
+    return SYS_HDR_LEN - 3;
 }
 
 inline int gb28181_make_psm_header(uint8_t *pData)
