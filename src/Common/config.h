@@ -322,6 +322,10 @@ extern const std::string kTimeoutSec;
 //随机端口范围，最少确保36个端口
 //该范围同时限制rtsp服务器udp端口范围
 extern const std::string kPortRange;
+//是否启用rtp保活
+//创建rtp服务时,会同时创建一个rtcp服务,用于下级保活
+//默认1(true)
+extern const std::string kEnableRtcpKeepalive;
 } //namespace RtpProxy
 
 /**
