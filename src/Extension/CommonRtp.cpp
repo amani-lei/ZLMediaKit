@@ -193,12 +193,6 @@ const size_t ONCE_SIZE = 50000;
 }
 
 bool DahuaRtpDecoder::inputRtp(const RtpPacket::Ptr &rtp, bool) {
-    static uint32_t last_seq = rtp->getSeq();
-    uint32_t xx = rtp->getSeq() - last_seq;
-    if(xx != 1)
-        printf("sql \n");
-    
-    last_seq = rtp->getSeq();
     uint8_t *pl = rtp->getPayload();
     bool dh_frame_end = false;
     timestamp = rtp->getStampMS();
@@ -206,31 +200,34 @@ bool DahuaRtpDecoder::inputRtp(const RtpPacket::Ptr &rtp, bool) {
     
     if (memcmp(pl, "HVAG", 4) == 0) {
         return false;
-    } else if (memcmp(pl, "DHAV", 4) == 0) {
-        //以DHAV开始的包
+    } else if (memcmp(pl, "DHAV", 4) == 0) {//以DHAV开始的包
         if (pl[4] != 0xfd && pl[4] != 0xfc) {
             return false;
         }
-        //并且以dhav结束的包
-        if (memcmp(pl + rtp_pl_size - 8, "dhav", 4) == 0) {
+        if (rtp_pl_size > 12 && memcmp(pl + rtp_pl_size - 8, "dhav", 4) == 0) {//并且以dhav结束的包
             buffer.append((char *)pl + 44, rtp_pl_size - 44 - 8);
             dh_frame_end = true;
         } else {
-            buffer.append((char *)pl + 44, rtp_pl_size - 44);
+            buffer.append((char *)pl + 44, rtp_pl_size - 44);//无结尾
         }
     } else {
-        //不以DHAV开始,但以dhav结束的包
-        if (memcmp(pl + rtp_pl_size - 8, "dhav", 4) == 0) {
+        if (rtp_pl_size > 12 && memcmp(pl + rtp_pl_size - 8, "dhav", 4) == 0) {//不以DHAV开始,但以dhav结束的包
             buffer.append((char *)pl, rtp_pl_size - 8);
             dh_frame_end = true;
         } else {
-            buffer.append((char *)pl, rtp_pl_size);
+            buffer.append((char *)pl, rtp_pl_size);//无结尾
         }
     }
     
     if (!dh_frame_end) {
+        //"dhav....",有时dhav包尾标记并不在同一个包
+        if(buffer.size() > 8 && memcmp(buffer.data() + buffer.size() - 8, "dhav", 4) == 0){
+            buffer.erase(buffer.end() - 8, buffer.end());
+            dh_frame_end = true;
+        }
         return false; //未到一帧结束,等待结尾
     }
+    //重组ps
     repacket_ps();
     obtainFrame();
     
