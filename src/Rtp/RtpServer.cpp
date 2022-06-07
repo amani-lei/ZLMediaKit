@@ -95,6 +95,7 @@ void RtpServer::start(uint16_t local_port, const string &stream_id, bool enable_
     //创建udp服务器
     Socket::Ptr rtp_socket = Socket::createSocket(nullptr, true);
     Socket::Ptr rtcp_socket = Socket::createSocket(nullptr, true);
+    GET_CONFIG(bool, enable_rtcp, RtpProxy::kEnableRtcpKeepalive);
     if (local_port == 0) {
         //随机端口，rtp端口采用偶数
         auto pair = std::make_pair(rtp_socket, rtcp_socket);
@@ -102,7 +103,7 @@ void RtpServer::start(uint16_t local_port, const string &stream_id, bool enable_
     } else if (!rtp_socket->bindUdpSock(local_port, local_ip, re_use_port)) {
         //用户指定端口
         throw std::runtime_error(StrPrinter << "创建rtp端口 " << local_ip << ":" << local_port << " 失败:" << get_uv_errmsg(true));
-    } else if (!rtcp_socket->bindUdpSock(rtp_socket->get_local_port() + 1, local_ip, re_use_port)) {
+    } else if (enable_rtcp && !rtcp_socket->bindUdpSock(rtp_socket->get_local_port() + 1, local_ip, re_use_port)) {
         // rtcp端口
         throw std::runtime_error(StrPrinter << "创建rtcp端口 " << local_ip << ":" << rtp_socket->get_local_port() + 1 << " 失败:" << get_uv_errmsg(true));
     }

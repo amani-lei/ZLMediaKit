@@ -282,11 +282,12 @@ namespace RtpProxy {
 const string kDumpDir = RTP_PROXY_FIELD"dumpDir";
 const string kTimeoutSec = RTP_PROXY_FIELD"timeoutSec";
 const string kPortRange = RTP_PROXY_FIELD "port_range";
-
+const string kEnableRtcpKeepalive = RTP_PROXY_FIELD "enable_rtcp_keepalive";
 static onceToken token([](){
     mINI::Instance()[kDumpDir] = "";
     mINI::Instance()[kTimeoutSec] = 15;
     mINI::Instance()[kPortRange] = "30000-35000";
+    mINI::Instance()[kEnableRtcpKeepalive] = 1;
 });
 } //namespace RtpProxy
 
