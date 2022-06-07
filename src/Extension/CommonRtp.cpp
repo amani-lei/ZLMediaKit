@@ -224,8 +224,9 @@ bool DahuaRtpDecoder::inputRtp(const RtpPacket::Ptr &rtp, bool) {
         if(buffer.size() > 8 && memcmp(buffer.data() + buffer.size() - 8, "dhav", 4) == 0){
             buffer.erase(buffer.end() - 8, buffer.end());
             dh_frame_end = true;
+        }else{
+            return false; //未到一帧结束,等待结尾
         }
-        return false; //未到一帧结束,等待结尾
     }
     //重组ps
     repacket_ps();
