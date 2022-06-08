@@ -287,7 +287,7 @@ static onceToken token([](){
     mINI::Instance()[kDumpDir] = "";
     mINI::Instance()[kTimeoutSec] = 15;
     mINI::Instance()[kPortRange] = "30000-35000";
-    mINI::Instance()[kEnableRtcpKeepalive] = 1;
+    mINI::Instance()[kEnableRtcpKeepalive] = 0;
 });
 } //namespace RtpProxy
 
