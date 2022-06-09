@@ -155,12 +155,12 @@ void DahuaRtpDecoder::repacket_ps() {
             ps_size += gb28181_make_sys_header(ps_ptr + ps_size);
             //添加sps
             ps_size += gb28181_make_psm_header(ps_ptr + ps_size);
-            ps_size += gb28181_make_pes_header(ps_ptr + ps_size, 0xe0, sps.size(), timestamp, 0);
+            ps_size += gb28181_make_pes_header(ps_ptr + ps_size, 0xe0, sps.size(), timestamp, timestamp);
             memcpy(ps_ptr + ps_size, sps.data(), sps.size());
             ps_size += sps.size();
             //添加pps
             ps_size += gb28181_make_psm_header(ps_ptr + ps_size);
-            ps_size += gb28181_make_pes_header(ps_ptr + ps_size, 0xe0, pps.size(), timestamp, 0);
+            ps_size += gb28181_make_pes_header(ps_ptr + ps_size, 0xe0, pps.size(), timestamp, timestamp);
             memcpy(ps_ptr + ps_size, pps.data(), pps.size());
             ps_size += pps.size();
         }
@@ -170,13 +170,13 @@ void DahuaRtpDecoder::repacket_ps() {
         while(left_size > 0){
 const size_t ONCE_SIZE = 50000;
             if(left_size >= ONCE_SIZE){
-                ps_size += gb28181_make_pes_header(ps_ptr + ps_size, 0xe0, ONCE_SIZE, timestamp, 0);
+                ps_size += gb28181_make_pes_header(ps_ptr + ps_size, 0xe0, ONCE_SIZE, timestamp, timestamp);
                 memcpy(ps_ptr + ps_size, nalu.data() + read_pos, ONCE_SIZE);
                 ps_size += ONCE_SIZE;
                 left_size -= ONCE_SIZE;
                 read_pos += ONCE_SIZE;
             }else{
-                ps_size += gb28181_make_pes_header(ps_ptr + ps_size, 0xe0, left_size, timestamp, 0);
+                ps_size += gb28181_make_pes_header(ps_ptr + ps_size, 0xe0, left_size, timestamp, timestamp);
                 memcpy(ps_ptr + ps_size, nalu.data() + read_pos, left_size);
                 ps_size += left_size;
                 read_pos += left_size;
@@ -195,7 +195,7 @@ const size_t ONCE_SIZE = 50000;
 bool DahuaRtpDecoder::inputRtp(const RtpPacket::Ptr &rtp, bool) {
     uint8_t *pl = rtp->getPayload();
     bool dh_frame_end = false;
-    timestamp = rtp->getStampMS();
+    timestamp = rtp->getStamp();
     size_t rtp_pl_size = rtp->getPayloadSize();
     
     if (memcmp(pl, "HVAG", 4) == 0) {
@@ -232,7 +232,7 @@ bool DahuaRtpDecoder::inputRtp(const RtpPacket::Ptr &rtp, bool) {
     repacket_ps();
     obtainFrame();
     
-    _frame->_dts = timestamp;
+    _frame->_dts = rtp->getStampMS();
     _frame->_buffer = ps_buffer;
 
     RtpCodec::inputFrame(_frame);
