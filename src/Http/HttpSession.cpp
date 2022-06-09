@@ -153,21 +153,24 @@ bool HttpSession::checkWebSocket(){
     //判断是否为websocket-flv
     if (checkLiveStreamFlv(res_cb)) {
         //这里是websocket-flv直播请求
+        WarnP(this) << ":True";
         return true;
     }
+    WarnP(this) << ":false";
 
     //判断是否为websocket-ts
     if (checkLiveStreamTS(res_cb)) {
         //这里是websocket-ts直播请求
         return true;
     }
+    WarnP(this) << ":false";
 
     //判断是否为websocket-fmp4
     if (checkLiveStreamFMP4(res_cb)) {
         //这里是websocket-fmp4直播请求
         return true;
     }
-
+    WarnP(this) << ":false";
     //这是普通的websocket连接
     if (!onWebSocketConnect(_parser)) {
         sendResponse(501, true, nullptr, headerOut);
@@ -179,16 +182,19 @@ bool HttpSession::checkWebSocket(){
 
 bool HttpSession::checkLiveStream(const string &schema, const string  &url_suffix, const function<void(const MediaSource::Ptr &src)> &cb){
     std::string url = _parser.Url();
+    WarnP(this) << "check stream url, schema = " << schema << ", url = " << url << ", with:" << url_suffix;
     auto it = _parser.getUrlArgs().find("schema");
     if (it != _parser.getUrlArgs().end()) {
         if (strcasecmp(it->second.c_str(), schema.c_str())) {
             // unsupported schema
+            WarnP(this) << "unsupported schema: " << schema;
             return false;
         }
     } else {
         auto prefix_size = url_suffix.size();
         if (url.size() < prefix_size || strcasecmp(url.data() + (url.size() - prefix_size), url_suffix.data())) {
             //未找到后缀
+            WarnP(this) << "suffix not found: " << schema;
             return false;
         }
         // url去除特殊后缀
@@ -206,6 +212,7 @@ bool HttpSession::checkLiveStream(const string &schema, const string  &url_suffi
 
     if (_mediaInfo._app.empty() || _mediaInfo._streamid.empty()) {
         //url不合法
+        WarnP(this) << "invalid url: " << schema;
         return false;
     }
 
