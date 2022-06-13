@@ -225,6 +225,9 @@ bool DahuaRtpDecoder::inputRtp(const RtpPacket::Ptr &rtp, bool) {
             buffer.erase(buffer.end() - 8, buffer.end());
             dh_frame_end = true;
         }else{
+            if(buffer.size() > 1024*1024*5){
+                buffer.clear();
+            }
             return false; //未到一帧结束,等待结尾
         }
     }

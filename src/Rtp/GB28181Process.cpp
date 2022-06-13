@@ -67,7 +67,10 @@ void GB28181Process::onRtpSorted(RtpPacket::Ptr rtp) {
 bool GB28181Process::inputRtp(bool, const char *data, size_t data_len) {
     RtpHeader *header = (RtpHeader *)data;
     auto pt = header->pt;
-    auto &ref = (pt == 40 ? _rtp_receiver[96] : _rtp_receiver[pt]);
+    if (pt == 40) {
+        return false;
+    }
+    auto &ref = _rtp_receiver[pt];
     if (!ref) {
         if (_rtp_receiver.size() > 2) {
             //防止pt类型太多导致内存溢出
@@ -114,26 +117,32 @@ bool GB28181Process::inputRtp(bool, const char *data, size_t data_len) {
             _rtp_decoder[pt] = Factory::getRtpDecoderByTrack(track);
             break;
         }
-        case 40: {
-            //大华rtp私有
-            header->pt = 96;
-            pt = 96;
-            WarnL << "rtp payload type推测为大华非标40(" << (int)pt << ")";
-            ref = std::make_shared<RtpReceiverImp>(
-                90000, [this](RtpPacket::Ptr rtp) { onRtpSorted(std::move(rtp)); });
-            _rtp_decoder[96] = std::shared_ptr<CommonRtpDecoder>((CommonRtpDecoder*)(new DahuaRtpDecoder(CodecInvalid, 32 * 1024)));
-            break;
-        }
+            // case 40: {
+            //     //大华rtp私有
+            //     header->pt = 96;
+            //     pt = 96;
+            //     WarnL << "rtp payload type推测为大华非标40(" << (int)pt << ")";
+            //     ref = std::make_shared<RtpReceiverImp>(
+            //         90000, [this](RtpPacket::Ptr rtp) { onRtpSorted(std::move(rtp)); });
+            //     _rtp_decoder[96] = std::shared_ptr<CommonRtpDecoder>((CommonRtpDecoder*)(new
+            //     DahuaRtpDecoder(CodecInvalid, 32 * 1024))); break;
+            // }
 
         default: {
-            if (pt != 33 && pt != 96) {
+            //大华rtp私有
+            uint8_t *payload = header->getPayloadData();
+            if (memcmp(payload, "DHAV", 4) == 0) {
+                WarnL << "rtp payload type推测为大华非标40(" << (int)pt << ")";
+                ref = std::make_shared<RtpReceiverImp>(90000, [this](RtpPacket::Ptr rtp) { onRtpSorted(std::move(rtp)); });
+                _rtp_decoder[96] = std::shared_ptr<CommonRtpDecoder>((CommonRtpDecoder *)(new DahuaRtpDecoder(CodecInvalid, 32 * 1024)));
+            }else{
+                if (pt != 33 && pt != 96) {
                 WarnL << "rtp payload type未识别(" << (int)pt << "),已按ts或ps负载处理";
+                }
+                ref = std::make_shared<RtpReceiverImp>(90000, [this](RtpPacket::Ptr rtp) { onRtpSorted(std::move(rtp)); });
+                // ts或ps负载
+                _rtp_decoder[pt] = std::make_shared<CommonRtpDecoder>(CodecInvalid, 32 * 1024);
             }
-
-            ref = std::make_shared<RtpReceiverImp>(90000, [this](RtpPacket::Ptr rtp) { onRtpSorted(std::move(rtp)); });
-
-            // ts或ps负载
-            _rtp_decoder[pt] = std::make_shared<CommonRtpDecoder>(CodecInvalid, 32 * 1024);
             //设置dump目录
             GET_CONFIG(string, dump_dir, RtpProxy::kDumpDir);
             if (!dump_dir.empty()) {
@@ -149,14 +158,12 @@ bool GB28181Process::inputRtp(bool, const char *data, size_t data_len) {
         }
 
         //设置frame回调
-        _rtp_decoder[pt == 40 ? 96 : pt]->addDelegate(
+        _rtp_decoder[pt]->addDelegate(
             std::make_shared<FrameWriterInterfaceHelper>([this](const Frame::Ptr &frame) {
                 onRtpDecode(frame);
                 return true;
             }));
     }
-    if(pt == 40)
-        return true;
     return ref->inputRtp(TrackVideo, (unsigned char *)data, data_len);
 }
 
