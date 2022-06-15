@@ -80,7 +80,7 @@ const string kRetryCount = CLUSTER_FIELD "retry_count";
 static onceToken token([]() {
     mINI::Instance()[kOriginUrl] = "";
     mINI::Instance()[kTimeoutSec] = 15;
-    mINI::Instance()[kTimeoutSec] = 3;
+    mINI::Instance()[kRetryCount] = 3;
 });
 
 }//namespace Cluster
@@ -322,6 +322,9 @@ void installWebHook(){
                 }
                 if (obj.isMember("enable_fmp4")) {
                     option.enable_fmp4 = obj["enable_fmp4"].asBool();
+                }
+                if (obj.isMember("continue_push_ms")) {
+                    option.continue_push_ms = obj["continue_push_ms"].asUInt();
                 }
                 invoker(err, option);
             } else {

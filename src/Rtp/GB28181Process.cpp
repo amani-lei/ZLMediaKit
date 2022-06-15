@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright (c) 2016 The ZLMediaKit project authors. All Rights Reserved.
  *
  * This file is part of ZLMediaKit(https://github.com/xia-chu/ZLMediaKit).
@@ -18,12 +18,13 @@
 #include "Extension/Opus.h"
 #include "Http/HttpTSPlayer.h"
 #include "Util/File.h"
+
 using namespace std;
 using namespace toolkit;
 
 namespace mediakit {
 
-//判断是否为ts负载
+// 判断是否为ts负载
 static inline bool checkTS(const uint8_t *packet, size_t bytes) {
     return bytes % TS_PACKET_SIZE == 0 && packet[0] == TS_SYNC_BYTE;
 }
@@ -65,6 +66,13 @@ void GB28181Process::onRtpSorted(RtpPacket::Ptr rtp) {
 }
 
 bool GB28181Process::inputRtp(bool, const char *data, size_t data_len) {
+    GET_CONFIG(uint32_t, h264_pt, RtpProxy::KH264PT);
+    GET_CONFIG(uint32_t, h265_pt, RtpProxy::KH265PT);
+    GET_CONFIG(uint32_t, ps_pt, RtpProxy::KPSPT);
+    GET_CONFIG(uint32_t, ts_pt, RtpProxy::KTSPT);
+    GET_CONFIG(uint32_t, opus_pt, RtpProxy::KOpusPT);
+    GET_CONFIG(uint32_t, g711u_pt, RtpProxy::KG711UPT);
+    GET_CONFIG(uint32_t, g711a_pt, RtpProxy::KG711APT);
     RtpHeader *header = (RtpHeader *)data;
     auto pt = header->pt;
     if (pt == 40) {
@@ -73,62 +81,39 @@ bool GB28181Process::inputRtp(bool, const char *data, size_t data_len) {
     auto &ref = _rtp_receiver[pt];
     if (!ref) {
         if (_rtp_receiver.size() > 2) {
-            //防止pt类型太多导致内存溢出
+            // 防止pt类型太多导致内存溢出
             throw std::invalid_argument("rtp pt类型不得超过2种!");
         }
-        switch (pt) {
-        case 100: {
+        if (pt == opus_pt) {
             // opus负载
             ref = std::make_shared<RtpReceiverImp>(48000, [this](RtpPacket::Ptr rtp) { onRtpSorted(std::move(rtp)); });
 
             auto track = std::make_shared<OpusTrack>();
             _interface->addTrack(track);
             _rtp_decoder[pt] = Factory::getRtpDecoderByTrack(track);
-            break;
-        }
-
-        case 99: {
+        } else if (pt == h265_pt) {
             // H265负载
             ref = std::make_shared<RtpReceiverImp>(90000, [this](RtpPacket::Ptr rtp) { onRtpSorted(std::move(rtp)); });
 
             auto track = std::make_shared<H265Track>();
             _interface->addTrack(track);
             _rtp_decoder[pt] = Factory::getRtpDecoderByTrack(track);
-            break;
-        }
-        case 98: {
+        } else if (pt == h264_pt) {
             // H264负载
             ref = std::make_shared<RtpReceiverImp>(90000, [this](RtpPacket::Ptr rtp) { onRtpSorted(std::move(rtp)); });
 
             auto track = std::make_shared<H264Track>();
             _interface->addTrack(track);
             _rtp_decoder[pt] = Factory::getRtpDecoderByTrack(track);
-            break;
-        }
-
-        case 0:
+        } else if (pt == g711u_pt || pt == g711a_pt) {
             // CodecG711U
-        case 8: {
             // CodecG711A
             ref = std::make_shared<RtpReceiverImp>(8000, [this](RtpPacket::Ptr rtp) { onRtpSorted(std::move(rtp)); });
 
             auto track = std::make_shared<G711Track>(pt == 0 ? CodecG711U : CodecG711A, 8000, 1, 16);
             _interface->addTrack(track);
             _rtp_decoder[pt] = Factory::getRtpDecoderByTrack(track);
-            break;
-        }
-            // case 40: {
-            //     //大华rtp私有
-            //     header->pt = 96;
-            //     pt = 96;
-            //     WarnL << "rtp payload type推测为大华非标40(" << (int)pt << ")";
-            //     ref = std::make_shared<RtpReceiverImp>(
-            //         90000, [this](RtpPacket::Ptr rtp) { onRtpSorted(std::move(rtp)); });
-            //     _rtp_decoder[96] = std::shared_ptr<CommonRtpDecoder>((CommonRtpDecoder*)(new
-            //     DahuaRtpDecoder(CodecInvalid, 32 * 1024))); break;
-            // }
-
-        default: {
+        } else {
             //大华rtp私有
             uint8_t *payload = header->getPayloadData();
             if (memcmp(payload, "DHAV", 4) == 0) {
@@ -143,7 +128,7 @@ bool GB28181Process::inputRtp(bool, const char *data, size_t data_len) {
                 // ts或ps负载
                 _rtp_decoder[pt] = std::make_shared<CommonRtpDecoder>(CodecInvalid, 32 * 1024);
             }
-            //设置dump目录
+            // 设置dump目录
             GET_CONFIG(string, dump_dir, RtpProxy::kDumpDir);
             if (!dump_dir.empty()) {
                 auto save_path = File::absolutePath(_media_info._streamid + ".mp2", dump_dir);
@@ -153,10 +138,8 @@ bool GB28181Process::inputRtp(bool, const char *data, size_t data_len) {
                     }
                 });
             }
-            break;
         }
-        }
-
+        //}
         //设置frame回调
         _rtp_decoder[pt]->addDelegate(
             std::make_shared<FrameWriterInterfaceHelper>([this](const Frame::Ptr &frame) {
@@ -169,24 +152,24 @@ bool GB28181Process::inputRtp(bool, const char *data, size_t data_len) {
 
 void GB28181Process::onRtpDecode(const Frame::Ptr &frame) {
     if (frame->getCodecId() != CodecInvalid) {
-        //这里不是ps或ts
+        // 这里不是ps或ts
         _interface->inputFrame(frame);
         return;
     }
 
-    //这是TS或PS
+    // 这是TS或PS
     if (_save_file_ps) {
         fwrite(frame->data(), frame->size(), 1, _save_file_ps.get());
     }
 
     if (!_decoder) {
-        //创建解码器
+        // 创建解码器
         if (checkTS((uint8_t *)frame->data(), frame->size())) {
-            //猜测是ts负载
+            // 猜测是ts负载
             InfoL << _media_info._streamid << " judged to be TS";
             _decoder = DecoderImp::createDecoder(DecoderImp::decoder_ts, _interface);
         } else {
-            //猜测是ps负载
+            // 猜测是ps负载
             InfoL << _media_info._streamid << " judged to be PS";
             _decoder = DecoderImp::createDecoder(DecoderImp::decoder_ps, _interface);
         }

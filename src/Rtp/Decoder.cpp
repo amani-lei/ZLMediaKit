@@ -149,7 +149,6 @@ void DecoderImp::onStream(int stream, int codecid, const void *extra, size_t byt
 void DecoderImp::onDecode(int stream,int codecid,int flags,int64_t pts,int64_t dts,const void *data,size_t bytes) {
     pts /= 90;
     dts /= 90;
-
     switch (codecid) {
         case PSI_STREAM_H264: {
             if (!_tracks[TrackVideo]) {
