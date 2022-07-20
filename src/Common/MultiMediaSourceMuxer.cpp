@@ -40,6 +40,9 @@ namespace mediakit {
                     default:
                         break;
                 }
+                if(frames.size() > 100){
+                    frames.clear();
+                }
                 frames.push_back(frame);
             }
         }
@@ -85,13 +88,19 @@ namespace mediakit {
                     case 34:
                         pps = frame;
                         return;
+                    case 16:
                     case 17:
                     case 18:
+                    case 19:
+                    case 20:
                         frames.clear();
                         frames.push_back(frame);
                         return;
                     default:
                         break;
+                }
+                if(frames.size() > 100){
+                    frames.clear();
                 }
                 frames.push_back(frame);
             }
