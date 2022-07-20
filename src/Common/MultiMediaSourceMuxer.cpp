@@ -20,7 +20,112 @@ namespace toolkit {
 }
 
 namespace mediakit {
-
+    class FrameGopCacheH264 : public FrameGopCache{
+        public:
+        virtual void pushFrame(Frame::Ptr frame)override{
+            //缓存视频帧,保证rtpsender收到的第一个帧是视频关键帧
+            if(frame->getTrackType() == TrackVideo && frame->getCodecId() == CodecH264 && frame->size() > 4){
+                auto nalu_type = (frame->data()[4] & 0x1f);
+                switch(nalu_type){
+                    case 7:
+                        sps = frame;
+                        return;
+                    case 8:
+                        pps = frame;
+                        return;
+                    case 5:
+                        frames.clear();
+                        frames.push_back(frame);
+                        return;
+                    default:
+                        break;
+                }
+                frames.push_back(frame);
+            }
+        }
+        virtual void for_eatch(std::function<void(Frame::Ptr)> cb)override{
+            if(!cb){
+                return;
+            }
+            if(sps){
+                cb(sps);
+            }
+            if(pps){
+                cb(pps);
+            }
+            for(auto f: frames){
+                cb(f);
+            }
+        }
+        virtual void clear()override{
+            sps = nullptr;
+            pps = nullptr;
+            frames.clear();
+        }
+        protected:
+        Frame::Ptr sps;
+        Frame::Ptr pps;
+        Frame::Ptr idr;
+        //用于缓存视频gop
+        std::deque<Frame::Ptr> frames;
+    };
+    class FrameGopCacheH265:public FrameGopCache{
+        public:
+        virtual void pushFrame(Frame::Ptr frame){
+            //缓存视频帧,保证rtpsender收到的第一个帧是视频关键帧
+            if(frame->getTrackType() == TrackVideo && frame->getCodecId() == CodecH265 && frame->size() > 4){
+                auto nalu_type = (frame->data()[4] & 0b01111110) >> 1;
+                switch(nalu_type){
+                    case 32:
+                        vps = frame;
+                        return;
+                    case 33:
+                        sps = frame;
+                        return;
+                    case 34:
+                        pps = frame;
+                        return;
+                    case 17:
+                    case 18:
+                        frames.clear();
+                        frames.push_back(frame);
+                        return;
+                    default:
+                        break;
+                }
+                frames.push_back(frame);
+            }
+        }
+        virtual void for_eatch(std::function<void(Frame::Ptr)> cb){
+            if(!cb){
+                return;
+            }
+            if(vps){
+                cb(vps);
+            }
+            if(sps){
+                cb(sps);
+            }
+            if(pps){
+                cb(pps);
+            }
+            for(auto f: frames){
+                cb(f);
+            }
+        }
+        virtual void clear(){
+            vps = nullptr;
+            sps = nullptr;
+            pps = nullptr;
+            frames.clear();
+        }
+        private:
+        Frame::Ptr vps;
+        Frame::Ptr sps;
+        Frame::Ptr pps;
+        //用于缓存视频gop
+        std::deque<Frame::Ptr> frames;
+    };
 ProtocolOption::ProtocolOption() {
     GET_CONFIG(bool, s_to_hls, General::kPublishToHls);
     GET_CONFIG(bool, s_to_mp4, General::kPublishToMP4);
@@ -232,10 +337,10 @@ void MultiMediaSourceMuxer::startSendRtp(MediaSource &, const MediaSourceEvent::
         rtp_sender->addTrackCompleted();
         //送入缓存帧
         lock_guard<mutex> lck(strong_self->_rtp_sender_mtx);
-        auto cache_frames = strong_self->getCacheFrames();
-        for(auto frame: cache_frames){
-            rtp_sender->inputFrame(frame);
-        }
+        auto cache_frames = strong_self->getFrameCache();
+        cache_frames->for_eatch([=](Frame::Ptr f){
+            rtp_sender->inputFrame(f);
+        });
         strong_self->_rtp_sender[args.ssrc] = rtp_sender;
     });
     
@@ -270,7 +375,7 @@ bool MultiMediaSourceMuxer::stopSendRtp(MediaSource &sender, const string &ssrc)
 vector<Track::Ptr> MultiMediaSourceMuxer::getMediaTracks(MediaSource &sender, bool trackReady) const {
     return getTracks(trackReady);
 }
-std::deque<Frame::Ptr> MultiMediaSourceMuxer::getCacheFrames(){
+std::shared_ptr<FrameGopCache> MultiMediaSourceMuxer::getFrameCache(){
     #if defined(ENABLE_RTPPROXY)
     return _frame_cache;
     #else 
@@ -355,7 +460,8 @@ void MultiMediaSourceMuxer::resetTracks() {
     for (auto &pr : _rtp_sender) {
         pr.second->resetTracks();
     }
-    _frame_cache.clear();
+    if(_frame_cache)
+        _frame_cache->clear();
 #endif
 
     //拷贝智能指针，目的是为了防止跨线程调用设置录像相关api导致的线程竞争问题
@@ -464,12 +570,20 @@ bool MultiMediaSourceMuxer::onTrackFrame(const Frame::Ptr &frame_in) {
     for (auto &pr : _rtp_sender) {
         ret = pr.second->inputFrame(frame) ? true : ret;
     }
-    //缓存视频帧,保证rtpsender收到的第一个帧是视频关键帧
-    if(frame_in->getTrackType() == TrackVideo){
-        if(frame_in->keyFrame() && _frame_cache.size() > 5){
-            _frame_cache.clear();
+    if(_frame_cache == nullptr && frame->getTrackType() == TrackVideo){
+        switch(frame->getCodecId()){
+            case CodecH264:
+            _frame_cache = std::shared_ptr<FrameGopCache>(new FrameGopCacheH264());
+            break;
+            case CodecH265:
+            _frame_cache = std::shared_ptr<FrameGopCache>(new FrameGopCacheH265());
+            break;
+            default:
+            break;
         }
-        _frame_cache.push_back(frame_in);
+    }
+    if(_frame_cache && frame->getTrackType() == TrackVideo){
+        _frame_cache->pushFrame(frame);
     }
 #endif //ENABLE_RTPPROXY
     return ret;

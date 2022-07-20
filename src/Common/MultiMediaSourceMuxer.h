@@ -21,8 +21,15 @@
 #include "TS/TSMediaSourceMuxer.h"
 #include "FMP4/FMP4MediaSourceMuxer.h"
 #include <deque>
+#include <functional>
 
 namespace mediakit {
+    class FrameGopCache{
+        public:
+        virtual void pushFrame(Frame::Ptr frame) = 0;
+        virtual void for_eatch(std::function<void(Frame::Ptr)> cb) = 0;
+        virtual void clear() = 0;
+    };
 
 class ProtocolOption {
 public:
@@ -156,9 +163,9 @@ public:
     /**
      * @brief Get the Cache Frames
      * 
-     * @return std::deque<Frame::Ptr> 
+     * @return std::shared_ptr<FrameGopCache>
      */
-    std::deque<Frame::Ptr> getCacheFrames();
+    std::shared_ptr<FrameGopCache> getFrameCache();
 protected:
     /////////////////////////////////MediaSink override/////////////////////////////////
 
@@ -203,8 +210,7 @@ private:
     //对象个数统计
     toolkit::ObjectStatistic<MultiMediaSourceMuxer> _statistic;
     #if defined(ENABLE_RTPPROXY)
-    //用于缓存视频gop
-    std::deque<Frame::Ptr> _frame_cache;
+    std::shared_ptr<FrameGopCache> _frame_cache;
     #endif
 };
 
