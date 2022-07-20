@@ -230,9 +230,15 @@ void MultiMediaSourceMuxer::startSendRtp(MediaSource &, const MediaSourceEvent::
             rtp_sender->addTrack(track);
         }
         rtp_sender->addTrackCompleted();
+        //送入缓存帧
+        auto cache_frames = strong_self->getCacheFrames();
+        for(auto frame: cache_frames){
+            rtp_sender->inputFrame(frame);
+        }
         lock_guard<mutex> lck(strong_self->_rtp_sender_mtx);
         strong_self->_rtp_sender[args.ssrc] = rtp_sender;
     });
+    
 #else
     cb(0, SockException(Err_other, "该功能未启用，编译时请打开ENABLE_RTPPROXY宏"));
 #endif//ENABLE_RTPPROXY
@@ -255,7 +261,6 @@ bool MultiMediaSourceMuxer::stopSendRtp(MediaSource &sender, const string &ssrc)
         return size;
     }
     //关闭特定的
-    lock_guard<mutex> lck(_rtp_sender_mtx);
     return _rtp_sender.erase(ssrc);
 #else
     return false;
@@ -265,7 +270,13 @@ bool MultiMediaSourceMuxer::stopSendRtp(MediaSource &sender, const string &ssrc)
 vector<Track::Ptr> MultiMediaSourceMuxer::getMediaTracks(MediaSource &sender, bool trackReady) const {
     return getTracks(trackReady);
 }
-
+std::deque<Frame::Ptr> MultiMediaSourceMuxer::getCacheFrames(){
+    #if defined(ENABLE_RTPPROXY)
+    return _frame_cache;
+    #else 
+    return {};
+    #endif
+}
 bool MultiMediaSourceMuxer::onTrackReady(const Track::Ptr &track) {
     if (CodecL16 == track->getCodecId()) {
         WarnL << "L16音频格式目前只支持RTSP协议推流拉流!!!";
@@ -344,6 +355,7 @@ void MultiMediaSourceMuxer::resetTracks() {
     for (auto &pr : _rtp_sender) {
         pr.second->resetTracks();
     }
+    _frame_cache.clear();
 #endif
 
     //拷贝智能指针，目的是为了防止跨线程调用设置录像相关api导致的线程竞争问题
@@ -411,6 +423,7 @@ private:
 };
 
 bool MultiMediaSourceMuxer::onTrackFrame(const Frame::Ptr &frame_in) {
+    
     GET_CONFIG(bool, modify_stamp, General::kModifyStamp);
     auto frame = frame_in;
     if (modify_stamp) {
@@ -450,6 +463,13 @@ bool MultiMediaSourceMuxer::onTrackFrame(const Frame::Ptr &frame_in) {
     lock_guard<mutex> lck(_rtp_sender_mtx);
     for (auto &pr : _rtp_sender) {
         ret = pr.second->inputFrame(frame) ? true : ret;
+    }
+    //缓存视频帧,保证rtpsender收到的第一个帧是视频关键帧
+    if(frame_in->getTrackType() == TrackVideo){
+        if(frame_in->keyFrame() && _frame_cache.size() > 5){
+            _frame_cache.clear();
+        }
+        _frame_cache.push_back(frame_in);
     }
 #endif //ENABLE_RTPPROXY
     return ret;

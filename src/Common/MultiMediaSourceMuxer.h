@@ -20,6 +20,7 @@
 #include "Rtmp/RtmpMediaSourceMuxer.h"
 #include "TS/TSMediaSourceMuxer.h"
 #include "FMP4/FMP4MediaSourceMuxer.h"
+#include <deque>
 
 namespace mediakit {
 
@@ -152,6 +153,12 @@ public:
      */
     std::vector<Track::Ptr> getMediaTracks(MediaSource &sender, bool trackReady = true) const override;
 
+    /**
+     * @brief Get the Cache Frames
+     * 
+     * @return std::deque<Frame::Ptr> 
+     */
+    std::deque<Frame::Ptr> getCacheFrames();
 protected:
     /////////////////////////////////MediaSink override/////////////////////////////////
 
@@ -195,6 +202,10 @@ private:
 
     //对象个数统计
     toolkit::ObjectStatistic<MultiMediaSourceMuxer> _statistic;
+    #if defined(ENABLE_RTPPROXY)
+    //用于缓存视频gop
+    std::deque<Frame::Ptr> _frame_cache;
+    #endif
 };
 
 }//namespace mediakit
