@@ -231,11 +231,11 @@ void MultiMediaSourceMuxer::startSendRtp(MediaSource &, const MediaSourceEvent::
         }
         rtp_sender->addTrackCompleted();
         //送入缓存帧
+        lock_guard<mutex> lck(strong_self->_rtp_sender_mtx);
         auto cache_frames = strong_self->getCacheFrames();
         for(auto frame: cache_frames){
             rtp_sender->inputFrame(frame);
         }
-        lock_guard<mutex> lck(strong_self->_rtp_sender_mtx);
         strong_self->_rtp_sender[args.ssrc] = rtp_sender;
     });
     
