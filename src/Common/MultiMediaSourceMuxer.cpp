@@ -68,7 +68,6 @@ namespace mediakit {
         protected:
         Frame::Ptr sps;
         Frame::Ptr pps;
-        Frame::Ptr idr;
         //用于缓存视频gop
         std::deque<Frame::Ptr> frames;
     };
