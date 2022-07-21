@@ -374,6 +374,7 @@ bool MultiMediaSourceMuxer::stopSendRtp(MediaSource &sender, const string &ssrc)
         return size;
     }
     //关闭特定的
+    lock_guard<mutex> lck(_rtp_sender_mtx);
     return _rtp_sender.erase(ssrc);
 #else
     return false;
