@@ -2,8 +2,9 @@
 
 namespace SRT {
 
-PacketSendQueue::PacketSendQueue(uint32_t max_size, uint32_t latency)
-    : _pkt_cap(max_size)
+PacketSendQueue::PacketSendQueue(uint32_t max_size, uint32_t latency,uint32_t flag)
+    : _srt_flag(flag)
+    , _pkt_cap(max_size)
     , _pkt_latency(latency) {}
 
 bool PacketSendQueue::drop(uint32_t num) {
@@ -24,10 +25,14 @@ bool PacketSendQueue::inputPacket(DataPacket::Ptr pkt) {
     while (_pkt_cache.size() > _pkt_cap) {
         _pkt_cache.pop_front();
     }
-    while (timeLatency() > _pkt_latency) {
+    while (timeLatency() > _pkt_latency && TLPKTDrop()) {
         _pkt_cache.pop_front();
     }
     return true;
+}
+
+bool PacketSendQueue::TLPKTDrop(){
+    return (_srt_flag&HSExtMessage::HS_EXT_MSG_TLPKTDROP) && (_srt_flag &HSExtMessage::HS_EXT_MSG_TSBPDSND);
 }
 
 std::list<DataPacket::Ptr> PacketSendQueue::findPacketBySeq(uint32_t start, uint32_t end) {

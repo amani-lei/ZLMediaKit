@@ -212,7 +212,7 @@ void SdpParser::load(const string &sdp) {
             char codec[16] = {0};
 
             sscanf(rtpmap.data(), "%d", &pt);
-            if (track._pt != pt) {
+            if (track._pt != pt && track._pt != 0xff) {
                 //pt不匹配
                 it = track._attr.erase(it);
                 continue;
@@ -237,7 +237,7 @@ void SdpParser::load(const string &sdp) {
             auto &fmtp = it->second;
             int pt;
             sscanf(fmtp.data(), "%d", &pt);
-            if (track._pt != pt) {
+            if (track._pt != pt && track._pt != 0xff) {
                 //pt不匹配
                 it = track._attr.erase(it);
                 continue;
@@ -558,8 +558,8 @@ uint32_t RtpPacket::getStamp() const {
     return ntohl(getHeader()->stamp);
 }
 
-uint32_t RtpPacket::getStampMS(bool ntp) const {
-    return ntp ? ntp_stamp & 0xFFFFFFFF : getStamp() * uint64_t(1000) / sample_rate;
+uint64_t RtpPacket::getStampMS(bool ntp) const {
+    return ntp ? ntp_stamp : getStamp() * uint64_t(1000) / sample_rate;
 }
 
 uint32_t RtpPacket::getSSRC() const {

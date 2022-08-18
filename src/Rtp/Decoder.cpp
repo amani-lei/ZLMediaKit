@@ -24,6 +24,15 @@
 using namespace toolkit;
 
 namespace mediakit {
+
+void Decoder::setOnDecode(Decoder::onDecode cb) {
+    _on_decode = std::move(cb);
+}
+
+void Decoder::setOnStream(Decoder::onStream cb) {
+    _on_stream = std::move(cb);
+}
+    
 static Decoder::Ptr createDecoder_l(DecoderImp::Type type) {
     switch (type){
         case DecoderImp::decoder_ps:
@@ -114,6 +123,7 @@ void DecoderImp::onStream(int stream, int codecid, const void *extra, size_t byt
             break;
         }
 
+        case PSI_STREAM_MPEG4_AAC :
         case PSI_STREAM_AAC: {
             onTrack(std::make_shared<AACTrack>());
             break;
@@ -154,8 +164,8 @@ void DecoderImp::onDecode(int stream,int codecid,int flags,int64_t pts,int64_t d
             if (!_tracks[TrackVideo]) {
                 onTrack(std::make_shared<H264Track>());
             }
-            auto frame = std::make_shared<H264FrameNoCacheAble>((char *) data, bytes, (uint32_t)dts, (uint32_t)pts, prefixSize((char *) data, bytes));
-            _merger.inputFrame(frame,[this](uint32_t dts, uint32_t pts, const Buffer::Ptr &buffer, bool) {
+            auto frame = std::make_shared<H264FrameNoCacheAble>((char *) data, bytes, (uint64_t)dts, (uint64_t)pts, prefixSize((char *) data, bytes));
+            _merger.inputFrame(frame,[this](uint64_t dts, uint64_t pts, const Buffer::Ptr &buffer, bool) {
                 onFrame(std::make_shared<FrameWrapper<H264FrameNoCacheAble> >(buffer, dts, pts, prefixSize(buffer->data(), buffer->size()), 0));
             });
             break;
@@ -165,13 +175,14 @@ void DecoderImp::onDecode(int stream,int codecid,int flags,int64_t pts,int64_t d
             if (!_tracks[TrackVideo]) {
                 onTrack(std::make_shared<H265Track>());
             }
-            auto frame = std::make_shared<H265FrameNoCacheAble>((char *) data, bytes, (uint32_t)dts, (uint32_t)pts, prefixSize((char *) data, bytes));
-            _merger.inputFrame(frame,[this](uint32_t dts, uint32_t pts, const Buffer::Ptr &buffer, bool) {
+            auto frame = std::make_shared<H265FrameNoCacheAble>((char *) data, bytes, (uint64_t)dts, (uint64_t)pts, prefixSize((char *) data, bytes));
+            _merger.inputFrame(frame,[this](uint64_t dts, uint64_t pts, const Buffer::Ptr &buffer, bool) {
                 onFrame(std::make_shared<FrameWrapper<H265FrameNoCacheAble> >(buffer, dts, pts, prefixSize(buffer->data(), buffer->size()), 0));
             });
             break;
         }
 
+        case PSI_STREAM_MPEG4_AAC :
         case PSI_STREAM_AAC: {
             uint8_t *ptr = (uint8_t *)data;
             if(!(bytes > 7 && ptr[0] == 0xFF && (ptr[1] & 0xF0) == 0xF0)){
@@ -181,7 +192,7 @@ void DecoderImp::onDecode(int stream,int codecid,int flags,int64_t pts,int64_t d
             if (!_tracks[TrackAudio]) {
                 onTrack(std::make_shared<AACTrack>());
             }
-            onFrame(std::make_shared<FrameFromPtr>(CodecAAC, (char *) data, bytes, (uint32_t)dts, 0, ADTS_HEADER_LEN));
+            onFrame(std::make_shared<FrameFromPtr>(CodecAAC, (char *) data, bytes, (uint64_t)dts, 0, ADTS_HEADER_LEN));
             break;
         }
 
@@ -192,7 +203,7 @@ void DecoderImp::onDecode(int stream,int codecid,int flags,int64_t pts,int64_t d
                 //G711传统只支持 8000/1/16的规格，FFmpeg貌似做了扩展，但是这里不管它了
                 onTrack(std::make_shared<G711Track>(codec, 8000, 1, 16));
             }
-            onFrame(std::make_shared<FrameFromPtr>(codec, (char *) data, bytes, (uint32_t)dts));
+            onFrame(std::make_shared<FrameFromPtr>(codec, (char *) data, bytes, (uint64_t)dts));
             break;
         }
 
@@ -200,7 +211,7 @@ void DecoderImp::onDecode(int stream,int codecid,int flags,int64_t pts,int64_t d
             if (!_tracks[TrackAudio]) {
                 onTrack(std::make_shared<OpusTrack>());
             }
-            onFrame(std::make_shared<FrameFromPtr>(CodecOpus, (char *) data, bytes, (uint32_t)dts));
+            onFrame(std::make_shared<FrameFromPtr>(CodecOpus, (char *) data, bytes, (uint64_t)dts));
             break;
         }
 

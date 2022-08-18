@@ -43,7 +43,7 @@ public:
 
     virtual ~RtpReceiverImp() override = default;
 
-    virtual bool inputRtp(TrackType type, uint8_t *ptr, size_t len) {
+    bool inputRtp(TrackType type, uint8_t *ptr, size_t len) {
         return RtpTrack::inputRtp(type, _sample_rate, ptr, len).operator bool();
     }
 
@@ -73,6 +73,7 @@ bool GB28181Process::inputRtp(bool, const char *data, size_t data_len) {
     GET_CONFIG(uint32_t, opus_pt, RtpProxy::KOpusPT);
     GET_CONFIG(uint32_t, g711u_pt, RtpProxy::KG711UPT);
     GET_CONFIG(uint32_t, g711a_pt, RtpProxy::KG711APT);
+
     RtpHeader *header = (RtpHeader *)data;
     auto pt = header->pt;
     if (pt == 40) {
@@ -139,14 +140,13 @@ bool GB28181Process::inputRtp(bool, const char *data, size_t data_len) {
                 });
             }
         }
-        //}
-        //设置frame回调
-        _rtp_decoder[pt]->addDelegate(
-            std::make_shared<FrameWriterInterfaceHelper>([this](const Frame::Ptr &frame) {
-                onRtpDecode(frame);
-                return true;
-            }));
+        // 设置frame回调
+        _rtp_decoder[pt]->addDelegate(std::make_shared<FrameWriterInterfaceHelper>([this](const Frame::Ptr &frame) {
+            onRtpDecode(frame);
+            return true;
+        }));
     }
+
     return ref->inputRtp(TrackVideo, (unsigned char *)data, data_len);
 }
 

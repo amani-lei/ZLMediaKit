@@ -19,6 +19,7 @@
 #include "HttpSession.h"
 #include "Record/HlsMediaSource.h"
 #include "Common/Parser.h"
+#include "strCoding.h"
 
 using namespace std;
 using namespace toolkit;
@@ -124,7 +125,7 @@ static bool makeFolderMenu(const string &httpPath, const string &strFullPath, st
         if (pDirent->d_name[0] == '.') {
             continue;
         }
-        file_map.emplace(pDirent->d_name, std::make_pair(pDirent->d_name, strPathPrefix + "/" + pDirent->d_name));
+        file_map.emplace(strCoding::UrlEncode(pDirent->d_name), std::make_pair(pDirent->d_name, strPathPrefix + "/" + pDirent->d_name));
     }
     //如果是root目录，添加虚拟目录
     if (httpPath == "/") {
@@ -464,6 +465,12 @@ static string getFilePath(const Parser &parser,const MediaInfo &media_info, TcpS
         //访问的是rootPath
         path = rootPath;
         url = parser.Url();
+    }
+    for (auto &ch : url) {
+        if (ch == '\\') {
+            //如果url中存在"\"，这种目录是Windows样式的；需要批量转换为标准的"/"; 防止访问目录权限外的文件
+            ch = '/';
+        }
     }
     auto ret = File::absolutePath(enableVhost ? media_info._vhost + url : url, path);
     NoticeCenter::Instance().emitEvent(Broadcast::kBroadcastHttpBeforeAccess, parser, ret, static_cast<SockInfo &>(sender));

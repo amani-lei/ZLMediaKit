@@ -139,14 +139,15 @@ ProtocolOption::ProtocolOption() {
     GET_CONFIG(bool, s_to_mp4, General::kPublishToMP4);
     GET_CONFIG(bool, s_enabel_audio, General::kEnableAudio);
     GET_CONFIG(bool, s_add_mute_audio, General::kAddMuteAudio);
+    GET_CONFIG(bool, s_mp4_as_player, Record::kMP4AsPlayer);
     GET_CONFIG(uint32_t, s_continue_push_ms, General::kContinuePushMS);
-
 
     enable_hls = s_to_hls;
     enable_mp4 = s_to_mp4;
     enable_audio = s_enabel_audio;
     add_mute_audio = s_add_mute_audio;
     continue_push_ms = s_continue_push_ms;
+    mp4_as_player = s_mp4_as_player;
 }
 
 static std::shared_ptr<MediaSinkInterface> makeRecorder(MediaSource &sender, const vector<Track::Ptr> &tracks, Recorder::type type, const string &custom_path, size_t max_second){
@@ -188,6 +189,7 @@ static string getTrackInfoStr(const TrackSource *track_src){
 }
 
 MultiMediaSourceMuxer::MultiMediaSourceMuxer(const string &vhost, const string &app, const string &stream, float dur_sec, const ProtocolOption &option) {
+    _option = option;
     _get_origin_url = [this, vhost, app, stream]() {
         auto ret = getOriginUrl(*MediaSource::NullMediaSource);
         if (!ret.empty()) {
@@ -259,6 +261,7 @@ int MultiMediaSourceMuxer::totalReaderCount() const {
                #if defined(ENABLE_MP4)
                (_fmp4 ? _fmp4->readerCount() : 0) +
                #endif
+               (_mp4 ? _option.mp4_as_player : 0) +
                (hls ? hls->readerCount() : 0);
 
 #if defined(ENABLE_RTPPROXY)
@@ -368,13 +371,11 @@ bool MultiMediaSourceMuxer::stopSendRtp(MediaSource &sender, const string &ssrc)
     }
     if (ssrc.empty()) {
         //关闭全部
-        lock_guard<mutex> lck(_rtp_sender_mtx);
         auto size = _rtp_sender.size();
         _rtp_sender.clear();
         return size;
     }
     //关闭特定的
-    lock_guard<mutex> lck(_rtp_sender_mtx);
     return _rtp_sender.erase(ssrc);
 #else
     return false;
@@ -465,7 +466,6 @@ void MultiMediaSourceMuxer::resetTracks() {
 #endif
 
 #if defined(ENABLE_RTPPROXY)
-    lock_guard<mutex> lck(_rtp_sender_mtx);
     for (auto &pr : _rtp_sender) {
         pr.second->resetTracks();
     }
@@ -485,65 +485,13 @@ void MultiMediaSourceMuxer::resetTracks() {
     }
 }
 
-//该类实现frame级别的时间戳覆盖
-class FrameModifyStamp : public Frame{
-public:
-    typedef std::shared_ptr<FrameModifyStamp> Ptr;
-    FrameModifyStamp(const Frame::Ptr &frame, Stamp &stamp){
-        _frame = frame;
-        //覆盖时间戳
-        stamp.revise(frame->dts(), frame->pts(), _dts, _pts, true);
-    }
-    ~FrameModifyStamp() override {}
-
-    uint32_t dts() const override{
-        return (uint32_t)_dts;
-    }
-
-    uint32_t pts() const override{
-        return (uint32_t)_pts;
-    }
-
-    size_t prefixSize() const override {
-        return _frame->prefixSize();
-    }
-
-    bool keyFrame() const override {
-        return _frame->keyFrame();
-    }
-
-    bool configFrame() const override {
-        return _frame->configFrame();
-    }
-
-    bool cacheAble() const override {
-        return _frame->cacheAble();
-    }
-
-    char *data() const override {
-        return _frame->data();
-    }
-
-    size_t size() const override {
-        return _frame->size();
-    }
-
-    CodecId getCodecId() const override {
-        return _frame->getCodecId();
-    }
-private:
-    int64_t _dts;
-    int64_t _pts;
-    Frame::Ptr _frame;
-};
-
 bool MultiMediaSourceMuxer::onTrackFrame(const Frame::Ptr &frame_in) {
     
     GET_CONFIG(bool, modify_stamp, General::kModifyStamp);
     auto frame = frame_in;
     if (modify_stamp) {
         //开启了时间戳覆盖
-        frame = std::make_shared<FrameModifyStamp>(frame, _stamp[frame->getTrackType()]);
+        frame = std::make_shared<FrameStamp>(frame, _stamp[frame->getTrackType()],true);
     }
 
     bool ret = false;
@@ -575,7 +523,6 @@ bool MultiMediaSourceMuxer::onTrackFrame(const Frame::Ptr &frame_in) {
 #endif
 
 #if defined(ENABLE_RTPPROXY)
-    lock_guard<mutex> lck(_rtp_sender_mtx);
     for (auto &pr : _rtp_sender) {
         ret = pr.second->inputFrame(frame) ? true : ret;
     }

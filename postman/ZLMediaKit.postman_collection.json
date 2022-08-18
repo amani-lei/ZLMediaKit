@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "fe6cdfbd-531d-45e6-87e5-d460ce9e6328",
+		"_postman_id": "4626d766-16b5-4255-89ba-f7614de2398c",
 		"name": "ZLMediaKit",
 		"description": "媒体服务器",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
@@ -900,7 +900,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "{{ZLMediaKit_URL}}/index/api/getMp4RecordFile?secret={{ZLMediaKit_secret}}&vhost={{defaultVhost}}&app=proxy&stream=2&period=2020-05-26",
+					"raw": "{{ZLMediaKit_URL}}/index/api/getMp4RecordFile?secret={{ZLMediaKit_secret}}&vhost={{defaultVhost}}&app=proxy&stream=2&customized_path=/www&period=2020-05-26",
 					"host": [
 						"{{ZLMediaKit_URL}}"
 					],
@@ -931,9 +931,60 @@
 							"description": "流id，例如 test"
 						},
 						{
+							"key": "customized_path",
+							"value": "/www",
+							"description": "录像文件保存自定义根目录，为空则采用配置文件设置"
+						},
+						{
 							"key": "period",
 							"value": "2020-05-26",
 							"description": "流的录像日期，格式为2020-02-01,如果不是完整的日期，那么是搜索录像文件夹列表，否则搜索对应日期下的mp4文件列表"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "删除录像文件夹(deleteRecordDirectory)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{ZLMediaKit_URL}}/index/api/deleteRecordDirectory?secret={{ZLMediaKit_secret}}&vhost={{defaultVhost}}&app=proxy&stream=2&period=2020-01-01",
+					"host": [
+						"{{ZLMediaKit_URL}}"
+					],
+					"path": [
+						"index",
+						"api",
+						"deleteRecordDirectory"
+					],
+					"query": [
+						{
+							"key": "secret",
+							"value": "{{ZLMediaKit_secret}}",
+							"description": "api操作密钥(配置文件配置)，如果操作ip是127.0.0.1，则不需要此参数"
+						},
+						{
+							"key": "vhost",
+							"value": "{{defaultVhost}}",
+							"description": "虚拟主机，例如__defaultVhost__"
+						},
+						{
+							"key": "app",
+							"value": "proxy",
+							"description": "应用名，例如 live"
+						},
+						{
+							"key": "stream",
+							"value": "2",
+							"description": "流id，例如 test"
+						},
+						{
+							"key": "period",
+							"value": "2020-01-01",
+							"description": "流的录像日期，格式为2020-01-01,如果不是完整的日期，那么会删除失败"
 						}
 					]
 				}
@@ -1036,7 +1087,7 @@
 						},
 						{
 							"key": "speed",
-							"value": 2.0,
+							"value": "2.0",
 							"description": "要设置的录像倍速"
 						}
 					]
@@ -1634,6 +1685,31 @@
 							"value": "",
 							"description": "根据ssrc关停某路rtp推流，不传时关闭所有推流",
 							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "获取版本信息(version)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{ZLMediaKit_URL}}/index/api/version?secret={{ZLMediaKit_secret}}",
+					"host": [
+						"{{ZLMediaKit_URL}}"
+					],
+					"path": [
+						"index",
+						"api",
+						"version"
+					],
+					"query": [
+						{
+							"key": "secret",
+							"value": "{{ZLMediaKit_secret}}"
 						}
 					]
 				}

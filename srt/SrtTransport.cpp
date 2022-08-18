@@ -86,6 +86,7 @@ void SrtTransport::inputSockData(uint8_t *buf, int len, struct sockaddr_storage 
 
             handleDataPacket(buf, len, addr);
         } else {
+            WarnL<<"DataPacket switch to other transport: "<<socketId;
             switchToOtherTransport(buf, len, socketId, addr);
         }
     } else {
@@ -94,6 +95,7 @@ void SrtTransport::inputSockData(uint8_t *buf, int len, struct sockaddr_storage 
             uint16_t type = ControlPacket::getControlType(buf, len);
             if (type != ControlPacket::HANDSHAKE && socketId != _socket_id && _socket_id != 0) {
                 // socket id not same
+                WarnL<<"ControlPacket: "<< (int)type <<" switch to other transport: "<<socketId;
                 switchToOtherTransport(buf, len, socketId, addr);
                 return;
             }
@@ -168,7 +170,7 @@ void SrtTransport::handleHandshakeConclusion(HandshakePacket &pkt, struct sockad
         if (delay <= 120) {
             delay = 120;
         }
-        for (auto ext : pkt.ext_list) {
+        for (auto& ext : pkt.ext_list) {
             // TraceL << getIdentifier() << " ext " << ext->dump();
             if (!req) {
                 req = std::dynamic_pointer_cast<HSExtMessage>(ext);
@@ -182,9 +184,9 @@ void SrtTransport::handleHandshakeConclusion(HandshakePacket &pkt, struct sockad
         }
         if (req) {
             if (req->srt_flag != srt_flag) {
-                WarnL << " not support flag " << req->srt_flag;
+                WarnL << "  flag " << req->srt_flag;
             }
-            // srt_flag = req->srt_flag;
+            srt_flag = req->srt_flag;
             delay = delay <= req->recv_tsbpd_delay ? req->recv_tsbpd_delay : delay;
         }
         TraceL << getIdentifier() << " CONCLUSION Phase ";
@@ -214,8 +216,8 @@ void SrtTransport::handleHandshakeConclusion(HandshakePacket &pkt, struct sockad
         sendControlPacket(res, true);
         TraceL << " buf size = " << res->max_flow_window_size << " init seq =" << _init_seq_number
                << " latency=" << delay;
-        _recv_buf = std::make_shared<PacketRecvQueue>(getPktBufSize(), _init_seq_number, delay * 1e3);
-        _send_buf = std::make_shared<PacketSendQueue>(getPktBufSize(), delay * 1e3);
+        _recv_buf = std::make_shared<PacketRecvQueue>(getPktBufSize(), _init_seq_number, delay * 1e3,srt_flag);
+        _send_buf = std::make_shared<PacketSendQueue>(getPktBufSize(), delay * 1e3,srt_flag);
         _send_packet_seq_number = _init_seq_number;
         _buf_delay = delay;
         onHandShakeFinished(_stream_id, addr);
@@ -228,7 +230,10 @@ void SrtTransport::handleHandshakeConclusion(HandshakePacket &pkt, struct sockad
 
 void SrtTransport::handleHandshake(uint8_t *buf, int len, struct sockaddr_storage *addr) {
     HandshakePacket pkt;
-    assert(pkt.loadFromData(buf, len));
+    if(!pkt.loadFromData(buf, len)){
+        WarnL<<"is not vaild HandshakePacket";
+        return;
+    }
 
     if (pkt.handshake_type == HandshakePacket::HS_TYPE_INDUCTION) {
         handleHandshakeInduction(pkt, addr);
@@ -236,6 +241,7 @@ void SrtTransport::handleHandshake(uint8_t *buf, int len, struct sockaddr_storag
         handleHandshakeConclusion(pkt, addr);
     } else {
         WarnL << " not support handshake type = " << pkt.handshake_type;
+        WarnL <<pkt.dump();
     }
     _ack_ticker.resetTime(_now);
     _nak_ticker.resetTime(_now);
@@ -288,13 +294,13 @@ void SrtTransport::handleNAK(uint8_t *buf, int len, struct sockaddr_storage *add
     bool empty = false;
     bool flush = false;
 
-    for (auto it : pkt.lost_list) {
+    for (auto& it : pkt.lost_list) {
         if (pkt.lost_list.back() == it) {
             flush = true;
         }
         empty = true;
         auto re_list = _send_buf->findPacketBySeq(it.first, it.second - 1);
-        for (auto pkt : re_list) {
+        for (auto& pkt : re_list) {
             pkt->R = 1;
             pkt->storeToHeader();
             sendPacket(pkt, flush);
@@ -325,7 +331,7 @@ void SrtTransport::handleDropReq(uint8_t *buf, int len, struct sockaddr_storage 
         return;
     }
     uint32_t max_seq = 0;
-    for (auto data : list) {
+    for (auto& data : list) {
         max_seq = data->packet_seq_number;
         if (_last_pkt_seq + 1 != data->packet_seq_number) {
             TraceL << "pkt lost " << _last_pkt_seq + 1 << "->" << data->packet_seq_number;
@@ -413,6 +419,7 @@ void SrtTransport::sendACKPacket() {
     _last_ack_pkt_seq_num = pkt->last_ack_pkt_seq_number;
     sendControlPacket(pkt, true);
     // TraceL<<"send  ack "<<pkt->dump();
+    // TraceL<<_recv_buf->dump();
 }
 
 void SrtTransport::sendLightACKPacket() {
@@ -494,7 +501,7 @@ void SrtTransport::handleDataPacket(uint8_t *buf, int len, struct sockaddr_stora
         // when no data ok send nack to sender immediately
     } else {
         uint32_t last_seq;
-        for (auto data : list) {
+        for (auto& data : list) {
             last_seq = data->packet_seq_number;
             if (_last_pkt_seq + 1 != data->packet_seq_number) {
                 TraceL << "pkt lost " << _last_pkt_seq + 1 << "->" << data->packet_seq_number;

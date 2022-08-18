@@ -121,9 +121,10 @@ const string kKeepAliveSecond = HTTP_FIELD "keepAliveSecond";
 const string kCharSet = HTTP_FIELD "charSet";
 const string kRootPath = HTTP_FIELD "rootPath";
 const string kVirtualPath = HTTP_FIELD "virtualPath";
-const string kNotFound = HTTP_FIELD "notFound";
-const string kDirMenu = HTTP_FIELD "dirMenu";
-const string kForbidCacheSuffix = HTTP_FIELD "forbidCacheSuffix";
+const string kNotFound = HTTP_FIELD"notFound";
+const string kDirMenu = HTTP_FIELD"dirMenu";
+const string kForbidCacheSuffix = HTTP_FIELD"forbidCacheSuffix";
+const string kForwardedIpHeader = HTTP_FIELD "forwarded_ip_header";
 
 static onceToken token([]() {
     mINI::Instance()[kSendBufSize] = 64 * 1024;
@@ -150,6 +151,7 @@ static onceToken token([]() {
                                                 "</html>"
                                              << endl;
     mINI::Instance()[kForbidCacheSuffix] = "";
+    mINI::Instance()[kForwardedIpHeader] = "";
 });
 
 } // namespace Http
@@ -229,13 +231,14 @@ static onceToken token([]() {
 ////////////录像配置///////////
 namespace Record {
 #define RECORD_FIELD "record."
-const string kAppName = RECORD_FIELD "appName";
-const string kSampleMS = RECORD_FIELD "sampleMS";
-const string kFileSecond = RECORD_FIELD "fileSecond";
-const string kFilePath = RECORD_FIELD "filePath";
-const string kFileBufSize = RECORD_FIELD "fileBufSize";
-const string kFastStart = RECORD_FIELD "fastStart";
-const string kFileRepeat = RECORD_FIELD "fileRepeat";
+const string kAppName = RECORD_FIELD"appName";
+const string kSampleMS = RECORD_FIELD"sampleMS";
+const string kFileSecond = RECORD_FIELD"fileSecond";
+const string kFilePath = RECORD_FIELD"filePath";
+const string kFileBufSize = RECORD_FIELD"fileBufSize";
+const string kFastStart = RECORD_FIELD"fastStart";
+const string kFileRepeat = RECORD_FIELD"fileRepeat";
+const string kMP4AsPlayer = RECORD_FIELD "mp4_as_player";
 
 static onceToken token([]() {
     mINI::Instance()[kAppName] = "record";
@@ -245,6 +248,7 @@ static onceToken token([]() {
     mINI::Instance()[kFileBufSize] = 64 * 1024;
     mINI::Instance()[kFastStart] = false;
     mINI::Instance()[kFileRepeat] = false;
+    mINI::Instance()[kMP4AsPlayer] = false;
 });
 } // namespace Record
 
