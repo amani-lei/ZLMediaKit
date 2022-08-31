@@ -272,7 +272,12 @@ bool HttpSession::checkLiveStreamFMP4(const function<void()> &cb){
         assert(fmp4_src);
         if (!cb) {
             //找到源，发送http头，负载后续发送
-            sendResponse(200, false, HttpFileManager::getContentType(".mp4").data(), KeyValue(), nullptr, true);
+            auto it = _parser.getUrlArgs().find("m");
+            if (it != _parser.getUrlArgs().end() && it->second.compare("download") == 0){
+                sendResponse(200, false, HttpFileManager::getContentType(".bin").data(), KeyValue(), nullptr, true);
+            }else{
+                sendResponse(200, false, HttpFileManager::getContentType(".mp4").data(), KeyValue(), nullptr, true);
+            }    
         } else {
             //自定义发送http头
             cb();
