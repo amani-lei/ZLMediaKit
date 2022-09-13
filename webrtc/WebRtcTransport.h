@@ -154,6 +154,7 @@ protected:
     virtual void onShutdown(const SockException &ex) = 0;
     virtual void onBeforeEncryptRtp(const char *buf, int &len, void *ctx) = 0;
     virtual void onBeforeEncryptRtcp(const char *buf, int &len, void *ctx) = 0;
+    virtual void onRtcpBye() = 0;
 
 protected:
     RTC::TransportTuple* getSelectedTuple() const;
@@ -248,6 +249,7 @@ public:
 
 protected:
     WebRtcTransportImp(const EventPoller::Ptr &poller);
+    void OnDtlsTransportApplicationDataReceived(const RTC::DtlsTransport *dtlsTransport, const uint8_t *data, size_t len) override;
     void onStartWebRTC() override;
     void onSendSockData(Buffer::Ptr buf, bool flush = true, RTC::TransportTuple *tuple = nullptr) override;
     void onCheckSdp(SdpType type, RtcSession &sdp) override;
@@ -262,7 +264,8 @@ protected:
     void onShutdown(const SockException &ex) override;
     virtual void onRecvRtp(MediaTrack &track, const std::string &rid, mediakit::RtpPacket::Ptr rtp) = 0;
     void updateTicker();
-    int getLossRate(mediakit::TrackType type);
+    float getLossRate(mediakit::TrackType type);
+    void onRtcpBye() override;
 
 private:
     void onSortedRtp(MediaTrack &track, const std::string &rid, mediakit::RtpPacket::Ptr rtp);
