@@ -267,17 +267,19 @@ bool HttpSession::checkLiveStream(const string &schema, const string  &url_suffi
 
 //http-fmp4 链接格式:http://vhost-url:port/app/streamid.live.mp4?key1=value1&key2=value2
 bool HttpSession::checkLiveStreamFMP4(const function<void()> &cb){
-    return checkLiveStream(FMP4_SCHEMA, ".live.mp4", [this, cb](const MediaSource::Ptr &src) {
+    bool is_download = false;
+    auto it = _parser.getUrlArgs().find("m");
+    if (it != _parser.getUrlArgs().end() && it->second.compare("download") == 0){
+        is_download = true;
+    }else{
+        is_download = false;
+    }
+    return checkLiveStream(FMP4_SCHEMA, ".live.mp4", [this, is_download, cb](const MediaSource::Ptr &src) {
         auto fmp4_src = dynamic_pointer_cast<FMP4MediaSource>(src);
         assert(fmp4_src);
         if (!cb) {
             //找到源，发送http头，负载后续发送
-            auto it = _parser.getUrlArgs().find("m");
-            if (it != _parser.getUrlArgs().end() && it->second.compare("download") == 0){
-                sendResponse(200, false, HttpFileManager::getContentType(".bin").data(), KeyValue(), nullptr, true);
-            }else{
-                sendResponse(200, false, HttpFileManager::getContentType(".mp4").data(), KeyValue(), nullptr, true);
-            }    
+            sendResponse(200, false, HttpFileManager::getContentType(is_download ? ".bin" : "mp4").data(), KeyValue(), nullptr, true);
         } else {
             //自定义发送http头
             cb();
