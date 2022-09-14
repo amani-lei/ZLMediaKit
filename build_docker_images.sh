@@ -46,8 +46,8 @@ fi
 
 case $platform in
 "arm64")
-	#link:osx
-	platform="linux/x86_64"
+	#eg:osx
+	platform="linux/arm64"
 	;;
 "x86_64"|"amd64")
 	platform="linux/amd64"
