@@ -27,8 +27,10 @@
 #include "TwccContext.h"
 #include "SctpAssociation.hpp"
 
+namespace mediakit {
+
 //RTC配置项目
-namespace RTC {
+namespace Rtc {
 extern const std::string kPort;
 extern const std::string kTimeOutSec;
 }//namespace RTC
@@ -200,7 +202,7 @@ public:
 
     //for send rtp
     NackList nack_list;
-    mediakit::RtcpContext::Ptr rtcp_context_send;
+    RtcpContext::Ptr rtcp_context_send;
 
     //for recv rtp
     std::unordered_map<std::string/*rid*/, std::shared_ptr<RtpChannel> > rtp_channel;
@@ -211,13 +213,13 @@ struct WrappedMediaTrack {
     MediaTrack::Ptr track;
     explicit WrappedMediaTrack(MediaTrack::Ptr ptr): track(ptr) {}
     virtual ~WrappedMediaTrack() {}
-    virtual void inputRtp(const char *buf, size_t len, uint64_t stamp_ms, mediakit::RtpHeader *rtp) = 0;
+    virtual void inputRtp(const char *buf, size_t len, uint64_t stamp_ms, RtpHeader *rtp) = 0;
 };
 
 struct WrappedRtxTrack: public WrappedMediaTrack {
     explicit WrappedRtxTrack(MediaTrack::Ptr ptr)
         : WrappedMediaTrack(std::move(ptr)) {}
-    void inputRtp(const char *buf, size_t len, uint64_t stamp_ms, mediakit::RtpHeader *rtp) override;
+    void inputRtp(const char *buf, size_t len, uint64_t stamp_ms, RtpHeader *rtp) override;
 };
 
 class WebRtcTransportImp;
@@ -229,7 +231,7 @@ struct WrappedRtpTrack : public WrappedMediaTrack {
         , _transport(t) {}
     TwccContext& _twcc_ctx;
     WebRtcTransportImp& _transport;
-    void inputRtp(const char *buf, size_t len, uint64_t stamp_ms, mediakit::RtpHeader *rtp) override;
+    void inputRtp(const char *buf, size_t len, uint64_t stamp_ms, RtpHeader *rtp) override;
 };
 
 class WebRtcTransportImp : public WebRtcTransport {
@@ -243,7 +245,7 @@ public:
     uint64_t getDuration() const;
     bool canSendRtp() const;
     bool canRecvRtp() const;
-    void onSendRtp(const mediakit::RtpPacket::Ptr &rtp, bool flush, bool rtx = false);
+    void onSendRtp(const RtpPacket::Ptr &rtp, bool flush, bool rtx = false);
 
     void createRtpChannel(const std::string &rid, uint32_t ssrc, MediaTrack &track);
 
@@ -262,14 +264,14 @@ protected:
     void onCreate() override;
     void onDestory() override;
     void onShutdown(const SockException &ex) override;
-    virtual void onRecvRtp(MediaTrack &track, const std::string &rid, mediakit::RtpPacket::Ptr rtp) = 0;
+    virtual void onRecvRtp(MediaTrack &track, const std::string &rid, RtpPacket::Ptr rtp) = 0;
     void updateTicker();
-    float getLossRate(mediakit::TrackType type);
+    float getLossRate(TrackType type);
     void onRtcpBye() override;
 
 private:
-    void onSortedRtp(MediaTrack &track, const std::string &rid, mediakit::RtpPacket::Ptr rtp);
-    void onSendNack(MediaTrack &track, const mediakit::FCI_NACK &nack, uint32_t ssrc);
+    void onSortedRtp(MediaTrack &track, const std::string &rid, RtpPacket::Ptr rtp);
+    void onSendNack(MediaTrack &track, const FCI_NACK &nack, uint32_t ssrc);
     void onSendTwcc(uint32_t ssrc, const std::string &twcc_fci);
 
     void registerSelf();
@@ -330,12 +332,12 @@ public:
 class WebRtcPluginManager {
 public:
     using onCreateRtc = std::function<void(const WebRtcInterface &rtc)>;
-    using Plugin = std::function<void(Session &sender, const std::string &offer, const WebRtcArgs &args, const onCreateRtc &cb)>;
+    using Plugin = std::function<void(Session &sender, const WebRtcArgs &args, const onCreateRtc &cb)>;
 
     static WebRtcPluginManager &Instance();
 
     void registerPlugin(const std::string &type, Plugin cb);
-    void getAnswerSdp(Session &sender, const std::string &type, const std::string &offer, const WebRtcArgs &args, const onCreateRtc &cb);
+    void getAnswerSdp(Session &sender, const std::string &type, const WebRtcArgs &args, const onCreateRtc &cb);
 
 private:
     WebRtcPluginManager() = default;
@@ -344,3 +346,5 @@ private:
     mutable std::mutex _mtx_creator;
     std::unordered_map<std::string, Plugin> _map_creator;
 };
+
+}// namespace mediakit
