@@ -313,6 +313,12 @@ int MultiMediaSourceMuxer::totalReaderCount(MediaSource &sender) {
 
 //此函数可能跨线程调用
 bool MultiMediaSourceMuxer::setupRecord(MediaSource &sender, Recorder::type type, bool start, const string &custom_path, size_t max_second) {
+    onceToken token(nullptr, [&]() {
+        if (_option.mp4_as_player && type == Recorder::type_mp4) {
+            //开启关闭mp4录制，触发观看人数变化相关事件
+            onReaderChanged(sender, totalReaderCount());
+        }
+    });
     switch (type) {
         case Recorder::type_hls : {
             if (start && !_hls) {
@@ -439,10 +445,6 @@ EventPoller::Ptr MultiMediaSourceMuxer::getOwnerPoller(MediaSource &sender) {
     }
 }
 bool MultiMediaSourceMuxer::onTrackReady(const Track::Ptr &track) {
-    if (CodecL16 == track->getCodecId()) {
-        WarnL << "L16音频格式目前只支持RTSP协议推流拉流!!!";
-        return false;
-    }
 
     bool ret = false;
     if (_rtmp) {

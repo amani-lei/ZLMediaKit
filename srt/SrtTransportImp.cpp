@@ -22,6 +22,7 @@ SrtTransportImp::~SrtTransportImp() {
 }
 
 void SrtTransportImp::onHandShakeFinished(std::string &streamid, struct sockaddr_storage *addr) {
+    SrtTransport::onHandShakeFinished(streamid,addr);
     // TODO parse stream id like this zlmediakit.com/live/test?token=1213444&type=push
     if (!_addr) {
         _addr.reset(new sockaddr_storage(*((sockaddr_storage *)addr)));
@@ -100,6 +101,7 @@ void SrtTransportImp::onSRTData(DataPacket::Ptr pkt) {
     }
     if (_decoder) {
         _decoder->input(reinterpret_cast<const uint8_t *>(pkt->payloadData()), pkt->payloadSize());
+        //TraceL<<" size "<<pkt->payloadSize();
     } else {
         WarnP(this) << " not reach this";
     }
@@ -109,11 +111,8 @@ void SrtTransportImp::onShutdown(const SockException &ex) {
     SrtTransport::onShutdown(ex);
 }
 
-bool SrtTransportImp::close(mediakit::MediaSource &sender, bool force) {
-    if (!force && totalReaderCount(sender)) {
-        return false;
-    }
-    std::string err = StrPrinter << "close media:" << sender.getUrl() << " " << force;
+bool SrtTransportImp::close(mediakit::MediaSource &sender) {
+    std::string err = StrPrinter << "close media: " << sender.getUrl();
     weak_ptr<SrtTransportImp> weak_self = static_pointer_cast<SrtTransportImp>(shared_from_this());
     getPoller()->async([weak_self, err]() {
         auto strong_self = weak_self.lock();
@@ -341,6 +340,15 @@ int SrtTransportImp::getLatencyMul() {
         return 4;
     }
     return latencyMul;
+}
+
+float SrtTransportImp::getTimeOutSec() {
+    GET_CONFIG(float, timeOutSec, kTimeOutSec);
+    if (timeOutSec <= 0) {
+        WarnL << "config srt " << kTimeOutSec << " not vaild";
+        return 5.0;
+    }
+    return timeOutSec;
 }
 
 int SrtTransportImp::getPktBufSize() {

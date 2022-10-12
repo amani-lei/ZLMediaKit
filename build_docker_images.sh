@@ -66,7 +66,11 @@ case $model in
 		;;
 	*)
         echo "unkonwn model"
+<<<<<<< HEAD
 		echo $help_string
+=======
+	echo $help_string
+>>>>>>> origin/merge_upstream
         exit
         ;;
 esac

@@ -40,6 +40,11 @@ static std::shared_ptr<RtpServer> rtpServer;
 static std::shared_ptr<UdpServer> rtcServer;
 #endif
 
+#if defined(ENABLE_SRT)
+#include "../srt/SrtSession.hpp"
+static std::shared_ptr<UdpServer> srtServer;
+#endif
+
 //////////////////////////environment init///////////////////////////
 
 API_EXPORT void API_CALL mk_env_init(const mk_config *cfg) {
@@ -62,8 +67,15 @@ API_EXPORT void API_CALL mk_stop_all_server(){
     CLEAR_ARR(rtsp_server);
     CLEAR_ARR(rtmp_server);
     CLEAR_ARR(http_server);
+    shell_server = nullptr;
 #ifdef ENABLE_RTPPROXY
     rtpServer = nullptr;
+#endif
+#ifdef ENABLE_WEBRTC
+    rtcServer = nullptr;
+#endif
+#ifdef ENABLE_SRT
+    srtServer = nullptr;
 #endif
     stopAllTcpServer();
 }
@@ -245,6 +257,73 @@ API_EXPORT uint16_t API_CALL mk_rtc_server_start(uint16_t port) {
 
     } catch (std::exception &ex) {
         rtcServer.reset();
+        WarnL << ex.what();
+        return 0;
+    }
+#else
+    WarnL << "未启用webrtc功能, 编译时请开启ENABLE_WEBRTC";
+    return 0;
+#endif
+}
+
+#ifdef ENABLE_WEBRTC
+class WebRtcArgsUrl : public mediakit::WebRtcArgs {
+public:
+    WebRtcArgsUrl(std::string url) { _url = std::move(url); }
+    ~WebRtcArgsUrl() = default;
+
+    toolkit::variant operator[](const std::string &key) const override {
+        if (key == "url") {
+            return _url;
+        }
+        return "";
+    }
+
+private:
+    std::string _url;
+};
+#endif
+
+API_EXPORT void API_CALL mk_webrtc_get_answer_sdp(void *user_data, on_mk_webrtc_get_answer_sdp cb, const char *type,
+                                                  const char *offer, const char *url) {
+#ifdef ENABLE_WEBRTC
+    assert(type && offer && url && cb);
+    auto session = std::make_shared<HttpSession>(Socket::createSocket());
+    std::string offer_str = offer;
+    WebRtcPluginManager::Instance().getAnswerSdp(*session, type, WebRtcArgsUrl(url),
+                                                 [offer_str, session, user_data, cb](const WebRtcInterface &exchanger) mutable {
+        try {
+            auto sdp_answer = const_cast<WebRtcInterface &>(exchanger).getAnswerSdp(offer_str);
+            cb(user_data, sdp_answer.data(), nullptr);
+        } catch (std::exception &ex) {
+            cb(user_data, nullptr, ex.what());
+        }
+    });
+#else
+    WarnL << "未启用webrtc功能, 编译时请开启ENABLE_WEBRTC";
+#endif
+}
+
+API_EXPORT uint16_t API_CALL mk_srt_server_start(uint16_t port) {
+#ifdef ENABLE_SRT
+    try {
+        srtServer = std::make_shared<UdpServer>();
+        srtServer->setOnCreateSocket([](const EventPoller::Ptr &poller, const Buffer::Ptr &buf, struct sockaddr *, int) {
+            if (!buf) {
+                return Socket::createSocket(poller, false);
+            }
+            auto new_poller = SRT::SrtSession::queryPoller(buf);
+            if (!new_poller) {
+                //握手第一阶段
+                return Socket::createSocket(poller, false);
+            }
+            return Socket::createSocket(new_poller, false);
+        });
+        srtServer->start<SRT::SrtSession>(port);
+        return srtServer->getPort();
+
+    } catch (std::exception &ex) {
+        srtServer.reset();
         WarnL << ex.what();
         return 0;
     }
