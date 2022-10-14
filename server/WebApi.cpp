@@ -387,7 +387,7 @@ Value makeMediaSourceJson(MediaSource &media){
 }
 
 #if defined(ENABLE_RTPPROXY)
-uint16_t openRtpServer(uint16_t local_port, const string &stream_id, int tcp_mode, const string &local_ip, bool re_use_port, uint32_t ssrc) {
+uint16_t openRtpServer(uint16_t local_port, const string &stream_id, int tcp_mode, const string & dst_url, int dst_port, const string &local_ip, bool re_use_port, uint32_t ssrc) {
     lock_guard<recursive_mutex> lck(s_rtpServerMapMtx);
     if (s_rtpServerMap.find(stream_id) != s_rtpServerMap.end()) {
         //为了防止RtpProcess所有权限混乱的问题，不允许重复添加相同的stream_id
@@ -411,7 +411,7 @@ uint16_t openRtpServer(uint16_t local_port, const string &stream_id, int tcp_mod
 void connectRtpServer(const string &stream_id, const string &dst_url, uint16_t dst_port, const function<void(const SockException &ex)> &cb) {
     lock_guard<recursive_mutex> lck(s_rtpServerMapMtx);
     auto it = s_rtpServerMap.find(stream_id);
-    if (it == s_rtpServerMap.end()) {
+    if (cb && it == s_rtpServerMap.end()) {
         cb(SockException(Err_other, "未找到rtp服务"));
         return;
     }
@@ -1135,7 +1135,10 @@ void installWebApi() {
             //兼容老版本请求，新版本去除enable_tcp参数并新增tcp_mode参数
             tcp_mode = 1;
         }
-        auto port = openRtpServer(allArgs["port"], stream_id, tcp_mode, "::", allArgs["re_use_port"].as<bool>(),
+        if(tcp_mode == 2){
+            CHECK_ARGS("dst_url", "dst_port");
+        }
+        auto port = openRtpServer(allArgs["port"], stream_id, tcp_mode,allArgs["dst_url"],allArgs["dst_port"], "::", allArgs["re_use_port"].as<bool>(),
                                   allArgs["ssrc"].as<uint32_t>());
         if (port == 0) {
             throw InvalidArgsException("该stream_id已存在");
@@ -1223,7 +1226,7 @@ void installWebApi() {
         if (!src) {
             throw ApiRetException("can not find the source stream", API::NotFound);
         }
-
+        GET_CONFIG(int, tcp_passive_timeout, RtpProxy::kTcpPassiveTimeout);
         MediaSourceEvent::SendRtpArgs args;
         args.passive = true;
         args.ssrc = allArgs["ssrc"];
@@ -1232,6 +1235,7 @@ void installWebApi() {
         args.pt = allArgs["pt"].empty() ? 96 : allArgs["pt"].as<int>();
         args.use_ps = allArgs["use_ps"].empty() ? true : allArgs["use_ps"].as<bool>();
         args.only_audio = allArgs["only_audio"].as<bool>();
+        args.tcp_passive_close_delay_ms = tcp_passive_timeout;
         TraceL << "startSendRtpPassive, pt " << int(args.pt) << " ps " << args.use_ps << " audio " <<  args.only_audio;
 
         src->getOwnerPoller()->async([=]() mutable {

@@ -335,6 +335,8 @@ extern const std::string kPortRange;
 //是否启用rtp保活
 //创建rtp服务时,会同时创建一个rtcp服务,用于下级保活
 extern const std::string kEnableRtcpKeepalive;
+//tcp被动模式下,等待上级连接的监听时长,默认5000ms
+extern const std::string kTcpPassiveTimeout;
 // rtp server h264的pt
 extern const std::string KH264PT;
 // rtp server h265的pt

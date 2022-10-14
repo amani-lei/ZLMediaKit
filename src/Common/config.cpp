@@ -285,6 +285,7 @@ const string kDumpDir = RTP_PROXY_FIELD "dumpDir";
 const string kTimeoutSec = RTP_PROXY_FIELD "timeoutSec";
 const string kPortRange = RTP_PROXY_FIELD "port_range";
 const string kEnableRtcpKeepalive = RTP_PROXY_FIELD "enable_rtcp_keepalive";
+const string kTcpPassiveTimeout = RTP_PROXY_FIELD "tcp_passive_timeout";
 const string KH264PT = RTP_PROXY_FIELD "h264_pt";
 const string KH265PT = RTP_PROXY_FIELD "h265_pt";
 const string KPSPT = RTP_PROXY_FIELD "ps_pt";
@@ -298,6 +299,7 @@ static onceToken token([](){
     mINI::Instance()[kTimeoutSec] = 15;
     mINI::Instance()[kPortRange] = "30000-35000";
     mINI::Instance()[kEnableRtcpKeepalive] = 0;
+    mINI::Instance()[kTcpPassiveTimeout] = 5000;
     mINI::Instance()[KH264PT] = 98;
     mINI::Instance()[KH265PT] = 99;
     mINI::Instance()[KPSPT] = 96;
