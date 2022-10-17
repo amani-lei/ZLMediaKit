@@ -1223,7 +1223,7 @@ void installWebApi() {
         if (!src) {
             throw ApiRetException("can not find the source stream", API::NotFound);
         }
-
+        GET_CONFIG(int, tcp_passive_timeout, RtpProxy::kTcpPassiveTimeout);
         MediaSourceEvent::SendRtpArgs args;
         args.passive = true;
         args.ssrc = allArgs["ssrc"];
@@ -1232,6 +1232,7 @@ void installWebApi() {
         args.pt = allArgs["pt"].empty() ? 96 : allArgs["pt"].as<int>();
         args.use_ps = allArgs["use_ps"].empty() ? true : allArgs["use_ps"].as<bool>();
         args.only_audio = allArgs["only_audio"].as<bool>();
+        args.tcp_passive_close_delay_ms = tcp_passive_timeout;
         TraceL << "startSendRtpPassive, pt " << int(args.pt) << " ps " << args.use_ps << " audio " <<  args.only_audio;
 
         src->getOwnerPoller()->async([=]() mutable {

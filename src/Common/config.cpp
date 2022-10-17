@@ -284,6 +284,7 @@ namespace RtpProxy {
 const string kDumpDir = RTP_PROXY_FIELD "dumpDir";
 const string kTimeoutSec = RTP_PROXY_FIELD "timeoutSec";
 const string kPortRange = RTP_PROXY_FIELD "port_range";
+const string kTcpPassiveTimeout = RTP_PROXY_FIELD "tcp_passive_timeout";
 const string kH264PT = RTP_PROXY_FIELD "h264_pt";
 const string kH265PT = RTP_PROXY_FIELD "h265_pt";
 const string kPSPT = RTP_PROXY_FIELD "ps_pt";
