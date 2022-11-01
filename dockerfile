@@ -67,7 +67,7 @@ RUN apt-get update && \
          gcc \
          g++ \
          libavcodec-dev libavutil-dev libswscale-dev libresample-dev \
-         gdb && \
+         gdb netcat && \
          apt-get autoremove -y && \
          apt-get clean -y && \
     rm -rf /var/lib/apt/lists/*
