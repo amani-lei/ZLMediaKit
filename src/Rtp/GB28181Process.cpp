@@ -62,10 +62,31 @@ GB28181Process::GB28181Process(const MediaInfo &media_info, MediaSinkInterface *
 GB28181Process::~GB28181Process() {}
 
 void GB28181Process::onRtpSorted(RtpPacket::Ptr rtp) {
+    static int recv = 0;
+    static int loss = 0;
+    static int32_t next_seq = -1;
+    recv++;
+
+    int32_t seq = rtp->getSeq();
+
+    if(next_seq<0){
+        next_seq = (rtp->getSeq() + 1) % 65536;
+    }else if(next_seq > seq){
+        loss += seq + 65535 - next_seq;
+    }else{
+        loss += seq - next_seq;
+    }
+    next_seq = seq + 1;
+
+    printf("seq = %d, loss = %.2f%%\n", seq, (loss*100.0) / (float)(recv + loss));
     _rtp_decoder[rtp->getHeader()->pt]->inputRtp(rtp, false);
 }
 
 bool GB28181Process::inputRtp(bool, const char *data, size_t data_len) {
+    static int xxx = 1;
+    if((xxx++ % 30) == 0){
+        return true;
+    }
     GET_CONFIG(uint32_t, h264_pt, RtpProxy::KH264PT);
     GET_CONFIG(uint32_t, h265_pt, RtpProxy::KH265PT);
     GET_CONFIG(uint32_t, ps_pt, RtpProxy::KPSPT);
