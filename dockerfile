@@ -67,7 +67,7 @@ RUN apt-get update && \
          gcc \
          g++ \
          libavcodec-dev libavutil-dev libswscale-dev libresample-dev \
-         gdb && \
+         gdb netcat && \
          apt-get autoremove -y && \
          apt-get clean -y && \
     rm -rf /var/lib/apt/lists/*
@@ -82,4 +82,4 @@ COPY --from=build /opt/media/ZLMediaKit/release/linux/${MODEL}/MediaServer /opt/
 COPY --from=build /opt/media/ZLMediaKit/release/linux/${MODEL}/config.ini /opt/media/conf/
 COPY --from=build /opt/media/ZLMediaKit/www/ /opt/media/bin/www/
 ENV PATH /opt/media/bin:$PATH
-CMD ["sh","-c","./MediaServer -s default.pem -c ../conf/config.ini"]
+CMD ["sh","-c","./MediaServer -d -s default.pem -c ../conf/config.ini"]
