@@ -18,6 +18,7 @@
 #include "Extension/Opus.h"
 #include "Http/HttpTSPlayer.h"
 #include "Util/File.h"
+#include "Common/qs.h"
 
 using namespace std;
 using namespace toolkit;
@@ -62,23 +63,19 @@ GB28181Process::GB28181Process(const MediaInfo &media_info, MediaSinkInterface *
 GB28181Process::~GB28181Process() {}
 
 void GB28181Process::onRtpSorted(RtpPacket::Ptr rtp) {
-    static int recv = 0;
-    static int loss = 0;
     static int32_t next_seq = -1;
-    recv++;
-
+    recv_pkt_count++;
     int32_t seq = rtp->getSeq();
 
     if(next_seq<0){
         next_seq = (rtp->getSeq() + 1) % 65536;
     }else if(next_seq > seq){
-        loss += seq + 65535 - next_seq;
+        loss_pkt_count += seq + 65535 - next_seq;
     }else{
-        loss += seq - next_seq;
+        loss_pkt_count += seq - next_seq;
     }
     next_seq = seq + 1;
-
-    printf("seq = %d, loss = %.2f%%\n", seq, (loss*100.0) / (float)(recv + loss));
+    printf("seq = %d, loss = %.2f%%\n", seq, (loss_pkt_count*100.0) / (float)(recv_pkt_count + loss_pkt_count));
     _rtp_decoder[rtp->getHeader()->pt]->inputRtp(rtp, false);
 }
 

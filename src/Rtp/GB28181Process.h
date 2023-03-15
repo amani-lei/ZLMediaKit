@@ -49,6 +49,8 @@ private:
     std::shared_ptr<FILE> _save_file_ps;
     std::unordered_map<uint8_t, std::shared_ptr<RtpCodec> > _rtp_decoder;
     std::unordered_map<uint8_t, std::shared_ptr<RtpReceiverImp> > _rtp_receiver;
+    uint64_t recv_pkt_count = 0;
+    uint64_t loss_pkt_count = 0;
 };
 
 }//namespace mediakit

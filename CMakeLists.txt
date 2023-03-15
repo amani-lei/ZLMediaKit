@@ -36,7 +36,7 @@ option(ENABLE_API_STATIC_LIB "Enable mk_api static lib" OFF)
 option(ENABLE_ASAN "Enable Address Sanitize" OFF)
 option(ENABLE_CXX_API "Enable C++ API SDK" OFF)
 option(ENABLE_FAAC "Enable FAAC" OFF)
-option(ENABLE_FFMPEG "Enable FFmpeg" OFF)
+option(ENABLE_FFMPEG "Enable FFmpeg" ON)
 option(ENABLE_HLS "Enable HLS" ON)
 option(ENABLE_JEMALLOC_STATIC "Enable static linking to the jemalloc library" OFF)
 option(ENABLE_MEM_DEBUG "Enable Memory Debug" OFF)
@@ -53,6 +53,7 @@ option(ENABLE_TESTS "Enable Tests" ON)
 option(ENABLE_WEBRTC "Enable WebRTC" ON)
 option(ENABLE_X264 "Enable x264" OFF)
 option(ENABLE_WEPOLL "Enable wepoll" OFF)
+option(ENABLE_OPENCV "Enable opencv" ON)
 
 option(USE_SOLUTION_FOLDERS "Enable solution dir supported" ON)
 
@@ -390,6 +391,11 @@ elseif(NOT ANDROID OR IOS)
   update_cached_list(MK_LINK_LIBRARIES pthread)
 endif()
 
+if(ENABLE_OPENCV)
+  find_package(OpenCV 4 REQUIRED)
+  include_directories(SYSTEM ${openCV_INCLUDE_DIRS})
+  update_cached_list(MK_LINK_LIBRARIES ${OpenCV_LIBS})
+endif()
 # ----------------------------------------------------------------------------
 # Solution folders:
 # ----------------------------------------------------------------------------

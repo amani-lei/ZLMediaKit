@@ -14,7 +14,7 @@
 
 #include <stdint.h>
 #include <memory>
-
+#include <functional>
 namespace mediakit {
 
 class ProcessInterface {
