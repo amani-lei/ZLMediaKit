@@ -18,7 +18,8 @@
 #include "Rtsp/RtpCodec.h"
 #include "Rtsp/RtpReceiver.h"
 #include "Http/HttpRequestSplitter.h"
-
+#include "libcff/cff.h"
+#include "Common/iqa.h"
 namespace mediakit{
 
 class RtpReceiverImp;
@@ -36,12 +37,20 @@ public:
      */
     bool inputRtp(bool, const char *data, size_t data_len) override;
 
+    int32_t install_iqa(std::shared_ptr<IQA> iqa){
+        iqa_ptr = iqa;
+        //packet_parser_ptr = std::make_shared<cff::avcodec_parser_t>();
+    }
+    int32_t uninstall_iqa(){
+        iqa_ptr.reset();
+    }
 protected:
     void onRtpSorted(RtpPacket::Ptr rtp);
 
 private:
     void onRtpDecode(const Frame::Ptr &frame);
-
+    void iqa_exec(const Frame::Ptr &frame);
+    int32_t init_iqa(const Frame::Ptr &frame);
 private:
     MediaInfo _media_info;
     DecoderImp::Ptr _decoder;
@@ -51,6 +60,11 @@ private:
     std::unordered_map<uint8_t, std::shared_ptr<RtpReceiverImp> > _rtp_receiver;
     uint64_t recv_pkt_count = 0;
     uint64_t loss_pkt_count = 0;
+
+    //为分析图像质量
+    std::shared_ptr<IQA> iqa_ptr;
+    cff::av_decoder_context_ptr_t decoder_ptr;
+    cff::avcodec_parser_ptr_t packet_parser_ptr;
 };
 
 }//namespace mediakit
