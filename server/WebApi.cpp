@@ -52,6 +52,9 @@
 #include "version.h"
 #endif
 
+#include "Common/iqa.h"
+
+
 using namespace std;
 using namespace Json;
 using namespace toolkit;
@@ -560,7 +563,27 @@ static void getArgsValue(const HttpAllArgs<ApiArgsType> &allArgs, const string &
         value = (Type)val;
     }
 }
-
+//处理质量分析请求
+int32_t StreamQualityAnalysis(const string &stream_id, const string & result_hook) {
+    lock_guard<recursive_mutex> lck(s_rtpServerMapMtx);
+    auto it = s_rtpServerMap.find(stream_id);
+    
+    if (it == s_rtpServerMap.end()) {
+        return -1;
+    }
+    assert(it->second);
+    RtpServer::Ptr rtp = it->second;
+    if(rtp == nullptr){
+        return -1;
+    }
+    auto cb = [hook = result_hook](const IQAResult &result){
+        ArgsType args;
+        args["start_time"] = result.start_time;
+        args["end_time"] = result.end_time;
+        iqaResult(hook, args);
+    };
+    rtp->install_iqa(cb);
+}
 /**
  * 安装api接口
  * 所有api都支持GET和POST两种方式
@@ -1612,6 +1635,15 @@ void installWebApi() {
         invoker(200, headerOut, val.toStyledString());
     });
 #endif
+    api_regist("/index/api/quality_analysis",[](API_ARGS_JSON){
+        //流质量分析接口
+        CHECK_SECRET();
+        CHECK_ARGS("stream_id");
+        auto stream_id = allArgs["stream_id"];
+        auto result_hook = allArgs["result_hook"];
+        auto port = StreamQualityAnalysis(stream_id, result_hook);
+        val["port"] = port;
+    });
 
     ////////////以下是注册的Hook API////////////
     api_regist("/index/hook/on_publish",[](API_ARGS_JSON){

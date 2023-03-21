@@ -213,6 +213,8 @@ endif()
 
 # 多个模块依赖 ffmpeg 相关库, 统一查找
 if(ENABLE_FFMPEG)
+  message(STATUS "ENABLE_FFMPEG")
+
   find_package(PkgConfig QUIET)
   # 查找 ffmpeg/libutil 是否安装
   if(PKG_CONFIG_FOUND)
@@ -220,6 +222,8 @@ if(ENABLE_FFMPEG)
     if(AVUTIL_FOUND)
       update_cached_list(MK_LINK_LIBRARIES PkgConfig::AVUTIL)
       message(STATUS "found library: ${AVUTIL_LIBRARIES}")
+    else()
+      message(STATUS "AVUTIL not found")
     endif()
   endif()
 
@@ -229,6 +233,9 @@ if(ENABLE_FFMPEG)
     if(AVCODEC_FOUND)
       update_cached_list(MK_LINK_LIBRARIES PkgConfig::AVCODEC)
       message(STATUS "found library: ${AVCODEC_LIBRARIES}")
+    else()
+      message(STATUS "AVCODEC not found")
+
     endif()
   endif()
 
@@ -297,6 +304,8 @@ if(ENABLE_FFMPEG)
     set(ENABLE_FFMPEG OFF)
     message(WARNING "ffmpeg 相关功能未找到")
   endif()
+else()
+  message(WARNING "ffmpeg 未启用")
 endif()
 
 if(ENABLE_MEM_DEBUG)

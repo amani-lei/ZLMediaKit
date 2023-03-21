@@ -32,6 +32,13 @@ extern const std::string kTimeoutSec;
 void installWebHook();
 void unInstallWebHook();
 /**
+ * @brief 质量分析的应答
+ * 
+ * @param url 
+ * @param body 
+ */
+void iqaResult(const std::string & url, const ArgsType& body);
+/**
  * 触发http hook请求
  * @param url 请求地址
  * @param body 请求body

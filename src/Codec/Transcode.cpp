@@ -252,7 +252,7 @@ void FFmpegFrame::fillPicture(AVPixelFormat target_format, int target_width, int
 ///////////////////////////////////////////////////////////////////////////
 
 template<bool decoder = true>
-static inline AVCodec *getCodec_l(const char *name) {
+static inline const AVCodec *getCodec_l(const char *name) {
     auto codec = decoder ? avcodec_find_decoder_by_name(name) : avcodec_find_encoder_by_name(name);
     if (codec) {
         InfoL << (decoder ? "got decoder:" : "got encoder:") << name;
@@ -263,7 +263,7 @@ static inline AVCodec *getCodec_l(const char *name) {
 }
 
 template<bool decoder = true>
-static inline AVCodec *getCodec_l(enum AVCodecID id) {
+static inline const AVCodec *getCodec_l(enum AVCodecID id) {
     auto codec = decoder ? avcodec_find_decoder(id) : avcodec_find_encoder(id);
     if (codec) {
         InfoL << (decoder ? "got decoder:" : "got encoder:") << avcodec_get_name(id);
@@ -279,7 +279,7 @@ public:
     CodecName(enum AVCodecID id) : _id(id) {}
 
     template <bool decoder>
-    AVCodec *getCodec() const {
+    const AVCodec *getCodec() const {
         if (!_codec_name.empty()) {
             return getCodec_l<decoder>(_codec_name.data());
         }
@@ -292,8 +292,8 @@ private:
 };
 
 template <bool decoder = true>
-static inline AVCodec *getCodec(const std::initializer_list<CodecName> &codec_list) {
-    AVCodec *ret = nullptr;
+static inline const AVCodec *getCodec(const std::initializer_list<CodecName> &codec_list) {
+    const AVCodec *ret = nullptr;
     for (int i = codec_list.size(); i >= 1; --i) {
         ret = codec_list.begin()[i - 1].getCodec<decoder>();
         if (ret) {

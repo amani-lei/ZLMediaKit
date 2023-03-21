@@ -17,6 +17,7 @@
 #include "Network/TcpServer.h"
 #include "Network/UdpServer.h"
 #include "RtpSession.h"
+#include "Common/iqa.h"
 
 namespace mediakit{
 
@@ -61,7 +62,11 @@ public:
      * 设置RtpProcess onDetach事件回调
      */
     void setOnDetach(const std::function<void()> &cb);
-
+    
+    virtual int32_t install_iqa(ProcessInterface::iqa_cb_t cb){
+        assert(_rtp_process);
+        return _rtp_process ? _rtp_process->install_qia(cb) : -1;
+    }
 private:
     // tcp主动模式连接服务器成功回调
     void onConnect();

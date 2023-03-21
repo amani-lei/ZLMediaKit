@@ -654,3 +654,7 @@ void unInstallWebHook(){
     g_keepalive_timer.reset();
     NoticeCenter::Instance().delListener(&web_hook_tag);
 }
+
+void iqaResult(const std::string & url, const ArgsType& body){
+    do_http_hook(url, body);
+}

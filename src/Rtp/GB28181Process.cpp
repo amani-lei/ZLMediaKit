@@ -58,7 +58,7 @@ namespace mediakit {
         assert(sink);
         _media_info = media_info;
         _interface = sink;
-        iqa_ptr = std::make_shared<IQA>;
+        iqa_ptr = std::make_shared<IQA>();
     }
 
     GB28181Process::~GB28181Process() {}
@@ -177,7 +177,9 @@ namespace mediakit {
     }
 
     void GB28181Process::onRtpDecode(const Frame::Ptr& frame) {
-        iqa_exec(frame);
+        if(iqa_cb){
+            iqa_exec(frame);
+        }
         if (frame->getCodecId() != CodecInvalid) {
             // 这里不是ps或ts
             _interface->inputFrame(frame);
@@ -221,10 +223,14 @@ namespace mediakit {
             return;
         }
         decoder_ptr->send_packet(pkt);
-        cff::avframe_t frame;
-        if(decpder_ptr->recv_frame(frame) != 0){
+        cff::avframe_t avframe;
+        if(decoder_ptr->recv_frame(avframe) != 0){
             return;
         }
+        iqa_ptr->push_frame(avframe, [this](const IQAResult &result){
+            iqa_cb(result);
+        });
+        
 
     }
     int32_t GB28181Process::init_iqa(const Frame::Ptr &frame){

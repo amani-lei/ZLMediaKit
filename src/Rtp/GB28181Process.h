@@ -37,20 +37,24 @@ public:
      */
     bool inputRtp(bool, const char *data, size_t data_len) override;
 
-    int32_t install_iqa(std::shared_ptr<IQA> iqa){
-        iqa_ptr = iqa;
-        //packet_parser_ptr = std::make_shared<cff::avcodec_parser_t>();
+    int32_t install_iqa(iqa_cb_t cb)override{
+        iqa_cb = cb;
+        return 0;
     }
-    int32_t uninstall_iqa(){
-        iqa_ptr.reset();
-    }
+    // int32_t uninstall_iqa(){
+    //     iqa_ptr.reset();
+    //     decoder_ptr.reset();
+    //     packet_parser_ptr.reset();
+    //     return true;
+    // }
 protected:
     void onRtpSorted(RtpPacket::Ptr rtp);
 
 private:
     void onRtpDecode(const Frame::Ptr &frame);
-    void iqa_exec(const Frame::Ptr &frame);
     int32_t init_iqa(const Frame::Ptr &frame);
+    void iqa_exec(const Frame::Ptr &frame);
+
 private:
     MediaInfo _media_info;
     DecoderImp::Ptr _decoder;
@@ -62,6 +66,7 @@ private:
     uint64_t loss_pkt_count = 0;
 
     //为分析图像质量
+    iqa_cb_t iqa_cb;
     std::shared_ptr<IQA> iqa_ptr;
     cff::av_decoder_context_ptr_t decoder_ptr;
     cff::avcodec_parser_ptr_t packet_parser_ptr;

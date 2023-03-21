@@ -11,6 +11,8 @@
 #include <chrono>
 //流质量评价
 struct IQAResult{
+    std::string start_time;
+    std::string end_time;
     float pkt_loss_rote = 0;//丢包率,越小越好
     float contrastive = 0;//对比度0-1,越接近0越好
     float luminance = 0;//亮度0-1,越接近0越好
@@ -48,7 +50,7 @@ class IQA
     void on_result(result_cb_t cb){
         result_cb = cb;
     }
-    void push_frame(cff::avframe_t& frame){
+    void push_frame(cff::avframe_t& frame, result_cb_t cb){
         cv::Mat mat = avframeToCvmat(frame.native());
         IQAResult result;
         auto begin = std::chrono::system_clock::now();
@@ -61,6 +63,7 @@ class IQA
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
         printf("ms = %lld\n", ms);
         result.dump();
+        cb(result);
     }
     cv::Mat avframeToCvmat(const AVFrame * frame)  
     {  

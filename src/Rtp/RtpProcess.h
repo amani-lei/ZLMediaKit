@@ -56,7 +56,13 @@ public:
      * 设置onDetach事件回调,false检查RTP超时，true停止
      */
     void setStopCheckRtp(bool is_check=false);
-
+    /**
+     * @brief 质量分析回调
+     * 
+     */
+    int32_t install_qia(ProcessInterface::iqa_cb_t cb) {
+        return _process ? _process->install_iqa(cb) : -1;
+    }
     /// SockInfo override
     std::string get_local_ip() override;
     uint16_t get_local_port() override;
