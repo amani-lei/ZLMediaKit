@@ -111,6 +111,20 @@ bool RtpProcess::inputRtp(bool is_udp, const Socket::Ptr &sock, const char *data
 }
 
 bool RtpProcess::inputFrame(const Frame::Ptr &frame) {
+    if(iqa_cb && frame->getTrackType() == TrackVideo){
+        IQAResult result;
+        std::string msg;
+        int32_t ret = iqa_exec(frame, result, msg);
+        if(ret == 0){
+            if(_process){
+                float m1, m5, total;
+                _process->get_packet_loss(m1,m5, total);
+                result.loss_pkt_rate_total = total;
+            }
+            iqa_cb(result, ret, msg);
+            uninit_iqa();
+        }
+    }
     _dts = frame->dts();
     if (_save_file_video && frame->getTrackType() == TrackVideo) {
         fwrite((uint8_t *) frame->data(), frame->size(), 1, _save_file_video.get());
@@ -134,9 +148,16 @@ bool RtpProcess::inputFrame(const Frame::Ptr &frame) {
 
 bool RtpProcess::addTrack(const Track::Ptr &track) {
     if (_muxer) {
+        if(track->getTrackType() == TrackType::TrackVideo){
+            auto cid = track->getCodecId();
+            switch(cid){
+            case CodecId::CodecH264:ffcodec_id = AV_CODEC_ID_H264;break;
+            case CodecId::CodecH265:ffcodec_id = AV_CODEC_ID_H265;break;
+            default: ffcodec_id = AV_CODEC_ID_NONE;break;
+            }
+        }
         return _muxer->addTrack(track);
     }
-
     lock_guard<recursive_mutex> lck(_func_mtx);
     _cached_func.emplace_back([this, track]() {
         _muxer->addTrack(track);
@@ -288,6 +309,68 @@ float RtpProcess::getLossRate(MediaSource &sender, TrackType type) {
     }
     return geLostInterval() * 100 / expected;
 }
+
+int32_t RtpProcess::iqa_exec(const Frame::Ptr& frame, IQAResult &result, std::string &msg) {
+    if(iqa_ptr == nullptr){
+            msg = "内部错误, 无效的分析器";
+            return -1;
+    }
+        if (frame->getTrackType() != TrackVideo) {
+            msg = "内部错误, 无效的frame";
+            return -1;    
+        }
+        cff::avpacket_t pkt;
+        auto data = reinterpret_cast<uint8_t*>(frame->data());
+        uint32_t size = frame->size();
+        if(packet_parser_ptr->parse(*decoder_ptr, data, size, pkt) != 0){
+            msg = "packet解析失败";
+            return -1;
+        }
+        if(pkt.size() == 0){
+            //数据不足
+            return 1;
+        }
+        decoder_ptr->send_packet(pkt);
+        cff::avframe_t avframe;
+        int ret = decoder_ptr->recv_frame(avframe);
+        if(ret == AVERROR(EAGAIN)){
+            return 1;
+        }
+        if(ret < 0){
+            msg = "解码失败";
+            return ret;
+        }
+        return iqa_ptr->parse_frame(avframe, result);
+    }
+    int32_t RtpProcess::init_iqa(std::string& msg){
+        if (ffcodec_id == AVCodecID::AV_CODEC_ID_NONE) {
+            msg = "无法获取视频编码";
+            return -1;
+        }
+        //初始化解码器和解析器
+        decoder_ptr = std::make_shared<cff::av_decoder_context_t>(ffcodec_id);
+        assert(*(decoder_ptr));
+        if(!(*(decoder_ptr))){
+            msg = "创建解码器失败";
+            goto err;
+        }
+        packet_parser_ptr = std::make_shared<cff::avcodec_parser_t>(ffcodec_id);
+        if (packet_parser_ptr == nullptr) {
+            msg = "创建packet-parser失败";
+            goto err;
+        }
+        iqa_ptr = std::make_shared<IQA>();
+        return 0;
+        err:
+        uninit_iqa();
+        return -1;
+    }
+    void RtpProcess::uninit_iqa(){
+        iqa_cb = nullptr;
+        iqa_ptr.reset();
+        decoder_ptr.reset();
+        packet_parser_ptr.reset();
+    }
 
 }//namespace mediakit
 #endif//defined(ENABLE_RTPPROXY)

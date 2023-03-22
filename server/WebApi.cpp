@@ -564,25 +564,46 @@ static void getArgsValue(const HttpAllArgs<ApiArgsType> &allArgs, const string &
     }
 }
 //处理质量分析请求
-int32_t StreamQualityAnalysis(const string &stream_id, const string & result_hook) {
+int32_t StreamQualityAnalysis(const string &stream_id, const string & result_hook, Json::Value &resutl_json) {
     lock_guard<recursive_mutex> lck(s_rtpServerMapMtx);
     auto it = s_rtpServerMap.find(stream_id);
     
     if (it == s_rtpServerMap.end()) {
+        resutl_json["code"] = -1;
+        resutl_json["msg"] = "请求的流不存在, 该功能只支持RTP Server";
         return -1;
     }
     assert(it->second);
     RtpServer::Ptr rtp = it->second;
     if(rtp == nullptr){
+        resutl_json["code"] = -1;
+        resutl_json["msg"] = "内部错误";
         return -1;
     }
-    auto cb = [hook = result_hook](const IQAResult &result){
+    std::string msg;
+    int32_t ret = rtp->install_iqa([result_hook](const IQAResult &result, int32_t ret, const std::string & msg){
         ArgsType args;
+        args["code"] = ret;
+        args["msg"] = msg;
         args["start_time"] = result.start_time;
         args["end_time"] = result.end_time;
-        iqaResult(hook, args);
-    };
-    rtp->install_iqa(cb);
+        args["loss_pkt_rate_total"] = result.loss_pkt_rate_total;
+        args["loss_pkt_rate_min1"] = result.loss_pkt_rate_min1;
+        args["loss_pkt_rate_min5"] = result.loss_pkt_rate_min5;
+        args["block_detect"] = result.block_detect;
+        args["brightness_detect"] = result.brightness_detect;
+        args["snow_noise_detect"] = result.snow_noise_detect;
+        args["sharpness_detect"] = result.sharpness_detect;
+        iqaResult(result_hook, args);
+    }, msg);
+    if(ret < 0){
+        resutl_json["code"] = -1;
+        resutl_json["msg"] = msg;
+    }else{
+        resutl_json["code"] = 0;
+    }
+
+    return ret;
 }
 /**
  * 安装api接口
@@ -1638,11 +1659,10 @@ void installWebApi() {
     api_regist("/index/api/quality_analysis",[](API_ARGS_JSON){
         //流质量分析接口
         CHECK_SECRET();
-        CHECK_ARGS("stream_id");
+        CHECK_ARGS("stream_id", "result_hook");
         auto stream_id = allArgs["stream_id"];
         auto result_hook = allArgs["result_hook"];
-        auto port = StreamQualityAnalysis(stream_id, result_hook);
-        val["port"] = port;
+        auto ret = StreamQualityAnalysis(stream_id, result_hook, val);
     });
 
     ////////////以下是注册的Hook API////////////

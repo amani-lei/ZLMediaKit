@@ -63,9 +63,9 @@ public:
      */
     void setOnDetach(const std::function<void()> &cb);
     
-    virtual int32_t install_iqa(ProcessInterface::iqa_cb_t cb){
+    virtual int32_t install_iqa(RtpProcess::iqa_cb_t cb, std::string& msg){
         assert(_rtp_process);
-        return _rtp_process ? _rtp_process->install_qia(cb) : -1;
+        return _rtp_process ? _rtp_process->install_iqa(cb, msg) : -1;
     }
 private:
     // tcp主动模式连接服务器成功回调

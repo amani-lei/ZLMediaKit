@@ -58,13 +58,11 @@ namespace mediakit {
         assert(sink);
         _media_info = media_info;
         _interface = sink;
-        iqa_ptr = std::make_shared<IQA>();
     }
 
     GB28181Process::~GB28181Process() {}
 
     void GB28181Process::onRtpSorted(RtpPacket::Ptr rtp) {
-        static int32_t next_seq = -1;
         recv_pkt_count++;
         int32_t seq = rtp->getSeq();
 
@@ -83,10 +81,6 @@ namespace mediakit {
     }
 
     bool GB28181Process::inputRtp(bool, const char* data, size_t data_len) {
-        static int xxx = 1;
-        if ((xxx++ % 30) == 0) {
-            return true;
-        }
         GET_CONFIG(uint32_t, h264_pt, RtpProxy::KH264PT);
         GET_CONFIG(uint32_t, h265_pt, RtpProxy::KH265PT);
         GET_CONFIG(uint32_t, ps_pt, RtpProxy::KPSPT);
@@ -177,8 +171,9 @@ namespace mediakit {
     }
 
     void GB28181Process::onRtpDecode(const Frame::Ptr& frame) {
-        if(iqa_cb){
-            iqa_exec(frame);
+        printf("onRtpDecode type = %d\n", frame->getTrackType());
+        if(frame->getTrackType() == TrackVideo){
+            printf("onRtpDecode->view \n");
         }
         if (frame->getCodecId() != CodecInvalid) {
             // 这里不是ps或ts
@@ -209,62 +204,5 @@ namespace mediakit {
             _decoder->input(reinterpret_cast<const uint8_t*>(frame->data()), frame->size());
         }
     }
-    void GB28181Process::iqa_exec(const Frame::Ptr& frame) {
-        if (frame->getTrackType() != TrackVideo || iqa_ptr == nullptr) {
-            return;    
-        }
-        if(packet_parser_ptr == nullptr){
-            if(init_iqa(frame) != 0){
-                return;
-            }
-        }
-        cff::avpacket_t pkt;
-        if(packet_parser_ptr->parse(*decoder_ptr, reinterpret_cast<uint8_t*>(frame->data()), frame->size(), pkt) != 0){
-            return;
-        }
-        decoder_ptr->send_packet(pkt);
-        cff::avframe_t avframe;
-        if(decoder_ptr->recv_frame(avframe) != 0){
-            return;
-        }
-        iqa_ptr->push_frame(avframe, [this](const IQAResult &result){
-            iqa_cb(result);
-        });
-        
-
-    }
-    int32_t GB28181Process::init_iqa(const Frame::Ptr &frame){
-        CodecId cid = frame->getCodecId();
-        if (decoder_ptr == nullptr) {
-            //初始化解码器和解析器
-            AVCodecID avcid = AVCodecID::AV_CODEC_ID_NONE;
-            switch (cid) {
-            case CodecH264:avcid = AV_CODEC_ID_H264;break;
-            case CodecH265:avcid = AV_CODEC_ID_H265;break;
-            default:
-                break;
-            }
-            if (avcid == AV_CODEC_ID_NONE) {
-                goto err;
-            }
-            decoder_ptr = std::make_shared<cff::av_decoder_context_t>(avcid);
-            assert(*(decoder_ptr));
-            if(!(*(decoder_ptr))){
-                goto err;
-            }
-            packet_parser_ptr = std::make_shared<cff::avcodec_parser_t>(avcid);
-            if (packet_parser_ptr == nullptr) {
-                goto err;
-            }
-        }
-        return 0;
-        err:
-        iqa_ptr.reset();
-        decoder_ptr.reset();
-        packet_parser_ptr.reset();
-        return -1;
-    }
-
-
 } // namespace mediakit
 #endif // defined(ENABLE_RTPPROXY)

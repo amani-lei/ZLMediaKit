@@ -15,6 +15,7 @@
 #include "ProcessInterface.h"
 #include "Rtcp/RtcpContext.h"
 #include "Common/MultiMediaSourceMuxer.h"
+#include "Common/iqa.h"
 
 namespace mediakit {
 
@@ -60,8 +61,14 @@ public:
      * @brief 质量分析回调
      * 
      */
-    int32_t install_qia(ProcessInterface::iqa_cb_t cb) {
-        return _process ? _process->install_iqa(cb) : -1;
+    virtual int32_t install_iqa(iqa_cb_t cb, std::string& msg)override{
+        if(iqa_cb){
+            msg = "任务已存在";
+            return -1;
+        }
+        if(init_iqa(msg) < 0)return -1;
+        iqa_cb = cb;
+        return 0;
     }
     /// SockInfo override
     std::string get_local_ip() override;
@@ -70,7 +77,9 @@ public:
     uint16_t get_peer_port() override;
     std::string getIdentifier() const override;
 
+    
 protected:
+
     bool inputFrame(const Frame::Ptr &frame) override;
     bool addTrack(const Track::Ptr & track) override;
     void addTrackCompleted() override;
@@ -104,6 +113,20 @@ private:
     toolkit::Ticker _last_check_alive;
     std::recursive_mutex _func_mtx;
     std::deque<std::function<void()> > _cached_func;
+protected:
+//----------------------------------------------------------------
+// 质量检测相关
+    int32_t init_iqa(std::string& msg);
+    void uninit_iqa();
+    int32_t iqa_exec(const Frame::Ptr &frame, IQAResult &result, std::string &msg);
+//----------------------------------------------------------------
+
+    //为分析图像质量
+    AVCodecID ffcodec_id = AV_CODEC_ID_NONE;
+    iqa_cb_t iqa_cb;
+    std::shared_ptr<IQA> iqa_ptr;
+    cff::av_decoder_context_ptr_t decoder_ptr;
+    cff::avcodec_parser_ptr_t packet_parser_ptr;
 };
 
 }//namespace mediakit

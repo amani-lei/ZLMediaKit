@@ -10,32 +10,47 @@
 #include <memory>
 #include <chrono>
 //流质量评价
-struct IQAResult{
+struct IQAResult {
     std::string start_time;
     std::string end_time;
-    float pkt_loss_rote = 0;//丢包率,越小越好
-    float contrastive = 0;//对比度0-1,越接近0越好
-    float luminance = 0;//亮度0-1,越接近0越好
-    float noise = 0;//噪声,越小越好
-    float block_artifact = 0;//块效应,越小越好
-    float sharpness = 0;//清晰度
-    void dump(){
-        printf("result:\n"
-        "\tblock\t%.3f\n"
-        "\tluminance\t%.3f\n"
-        "\tnoise\t%.3f\n"
-        "\tsharpness\t%.3f\n",
-        block_artifact,
-        luminance,
-        noise,
-        sharpness
-        );
-    }
+
+    float loss_pkt_rate_total = 0;//总丢包率,越小越好
+    float loss_pkt_rate_min1 = 0;//1分钟丢包率,越小越好
+    float loss_pkt_rate_min5 = 0;//5分钟丢包率,越小越好
+    
+    float block_detect = 0;
+    float brightness_detect = 0;
+    float snow_noise_detect = 0;
+    float sharpness_detect = 0;
+
+    // //基础参数
+     float lum = 0;//平均亮度,0-1
+     float crts = 0;//对比度0-1,越接近0.5越好
+
+    // float chroma = 0.0;//色度,饱和度
+    // //扩展参数
+    // float noise = 0;//噪声,越小越好
+    // float acuity = 0;//锐度,细节展现度
+
+    
+    // float sharpness = 0;//清晰度
+    // void dump() {
+    //     printf("result:\n"
+    //         "\tblock\t%.3f\n"
+    //         "\tluminance\t%.3f\n"
+    //         "\tnoise\t%.3f\n"
+    //         "\tsharpness\t%.3f\n",
+    //         block,
+    //         lum,
+    //         noise,
+    //         sharpness
+    //     );
+    // }
 };
 
 class IQA
 {
-    public:
+public:
     // //支持的算法
     // enum class algorithm_t{
     //     luminance = 0x01,
@@ -46,39 +61,97 @@ class IQA
     // };
     IQA() = default;
     virtual ~IQA() = default;
-    using result_cb_t = std::function<void(const IQAResult&)>;
-    void on_result(result_cb_t cb){
-        result_cb = cb;
-    }
-    void push_frame(cff::avframe_t& frame, result_cb_t cb){
-        cv::Mat mat = avframeToCvmat(frame.native());
-        IQAResult result;
+    int32_t parse_frame(cff::avframe_t& frame, IQAResult& result) {
         auto begin = std::chrono::system_clock::now();
-        
-        result.block_artifact = blockDetect(mat);
-        result.luminance = brightnessDetect(mat);
-        result.noise = snowNoiseDetect(mat);
-        result.sharpness = sharpnessDetect(mat);
+        //rgb mat
+        cv::Mat src_mat = avframeToRGBmat(frame.native());
+        //亮度&对比度
+        luminance_contrast_detect(frame, result.lum, result.crts);
+        cv::Mat gray_mat;
+        cv::cvtColor(src_mat, gray_mat, CV_RGB2GRAY);
+        //块
+        result.block_detect = block_detect(gray_mat);
+        result.brightness_detect = brightnessDetect(src_mat);
+        result.snow_noise_detect = snowNoiseDetect(gray_mat);
+        result.sharpness_detect = sharpnessDetect(gray_mat);
         auto end = std::chrono::system_clock::now();
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
-        printf("ms = %lld\n", ms);
-        result.dump();
-        cb(result);
+        return 0;
     }
-    cv::Mat avframeToCvmat(const AVFrame * frame)  
-    {  
-        int width = frame->width;  
-        int height = frame->height;  
-        cv::Mat image(height, width, CV_8UC3); 
-        int cvLinesizes[1];  
+    cv::Mat avframeToRGBmat(const AVFrame* frame)
+    {
+        int width = frame->width;
+        int height = frame->height;
+        cv::Mat image(height, width, CV_8UC3);
+        int cvLinesizes[1];
         cvLinesizes[0] = image.step1();
-        SwsContext* conversion = sws_getContext(width, height, (AVPixelFormat) frame->format, width, height, AVPixelFormat::AV_PIX_FMT_RGB24, SWS_FAST_BILINEAR, NULL, NULL, NULL);  
-        sws_scale(conversion, frame->data, frame->linesize, 0, height, &image.data, cvLinesizes);  
+        SwsContext* conversion = sws_getContext(width, height, (AVPixelFormat)frame->format, width, height, AVPixelFormat::AV_PIX_FMT_RGB24, SWS_FAST_BILINEAR, NULL, NULL, NULL);
+        sws_scale(conversion, frame->data, frame->linesize, 0, height, &image.data, cvLinesizes);
         sws_freeContext(conversion);
-        return image;  
+        return image;
+    }
+
+    //分析亮度和对比度
+    static int32_t luminance_contrast_detect(const cff::avframe_t& yuv_frame, float& luminous, float& contrast) {
+        const AVFrame* p = yuv_frame.native();
+        float sum = 0;
+        uint32_t max_lum = 0, min_lum = 255;
+        for (int h = 0; h < p->height; h++) {
+            for (int w = 0; w < p->width; w++) {
+                uint8_t y = p->data[0][h * p->linesize[0] + w];
+                sum += y;
+                if (y > max_lum) {
+                    max_lum = y;
+                }
+                if (y < min_lum) {
+                    min_lum = y;
+                }
+            }
+        }
+        luminous = sum / (p->width * p->height);
+        if(max_lum == 0 && min_lum == 0){
+            contrast = 0;
+        }else{
+            contrast = (max_lum - min_lum) / (float)(max_lum + min_lum);
+        }
+        return 0;
+    }
+    /**
+     * @brief 计算坏块率
+     * 
+     * @param gray 灰度图像
+     * @param nb_zero 在bsize*bsize的区域内, 如果梯度不为0的个数小于nozero, 就认为是块
+     * @param bsize 
+     * @return float 0.0-1.0
+     */
+    float block_detect(const cv::Mat& gray, int nb_zero = 2, int32_t bsize = 8) {
+        float block_num = 0, normal_num = 0;
+        cv::Mat sobel;
+        cv::Sobel(gray, sobel, CV_32FC1, 1, 1, 3);
+
+        cv::Rect rt(0,0,bsize,bsize);    
+        for(int j = 0; j < sobel.rows / bsize; j++) {
+            rt.x = 0;
+            for(int i = 0; i < sobel.cols / bsize; i++) {
+                cv::Mat sub_mat = sobel(rt).clone();
+                float solel_sum = cv::countNonZero(sub_mat);
+                if(solel_sum >= nb_zero){
+                    normal_num ++;
+                }else{
+                    block_num ++;
+                }
+                rt.x += bsize;
+            }
+            rt.y += bsize;
+        }
+        if(normal_num == 0 && block_num == 0){
+            return 0.0;
+        }
+        //如果多个分区的非0值相同, 也认为是色块?
+        return block_num / (normal_num + block_num);
     }
     //块效应
-    static double blockDetect(const cv::Mat &srcImg)
+    static double blockDetect(const cv::Mat& srcImg)
     {
         cv::Mat img, cont;
         //转换为灰度图像
@@ -97,7 +170,7 @@ class IQA
         return (double)1 - (double)sum2 / (sum1 == 0 ? 1 : sum1);
     }
     //过曝光
-    double brightnessDetect(const cv::Mat &srcImg)
+    double brightnessDetect(const cv::Mat& srcImg)
     {
         cv::Mat img;
         cv::cvtColor(srcImg, img, CV_BGR2Lab);
@@ -118,29 +191,23 @@ class IQA
         return bright / 100;
     }
     //噪声/雪花屏
-    double snowNoiseDetect(const cv::Mat &srcImg)
+    double snowNoiseDetect(const cv::Mat& gray_mat) 
     {
-        cv::Mat img;
-        if (srcImg.empty())
-            return -1;
-        if (srcImg.channels() == 1) // 转换为单通道图
-            img = srcImg;
-        else
-            cv::cvtColor(srcImg, img, cv::COLOR_BGR2GRAY);
+        assert(gray_mat.channels() == 1);
 
         cv::Mat img_m;
 
-        int width = img.cols;
-        int height = img.rows;
+        int width = gray_mat.cols;
+        int height = gray_mat.rows;
 
         // 对图像进行均值滤波去噪
         //  cvSmo oth(img,img_m,CV_MEDIAN,3,img->nChannels);
         cv::Mat kernel_gauss = (cv::Mat_<double>(3, 3) << 1, 2, 1,
-                                2, 4, 2,
-                                1, 2, 1);
+            2, 4, 2,
+            1, 2, 1);
         kernel_gauss /= 16;
 
-        filter2D(img, img_m, img.depth(), kernel_gauss, cv::Point(-1, -1));
+        filter2D(gray_mat, img_m, gray_mat.depth(), kernel_gauss, cv::Point(-1, -1));
 
         double psignal, pnoise; // 信号功率   噪音功率
         int gray_a, gray_b;
@@ -154,7 +221,7 @@ class IQA
             for (int c = 0; c < width; c++)
             {
                 gray_a = img_m.at<uint8_t>(r, c);
-                gray_b = img.at<uint8_t>(r, c);
+                gray_b = gray_mat.at<uint8_t>(r, c);
                 psignal += (double)gray_b * (double)gray_b / 255 / 255; // 这里是求噪音所占信号的比例
                 pnoise += (double)(gray_b - gray_a) * (double)(gray_b - gray_a) / 255 / 255;
             }
@@ -168,22 +235,15 @@ class IQA
         return snr; // 返回信噪比，即图像质量
     }
     //清晰度
-    double sharpnessDetect(const cv::Mat &srcImg)
+    double sharpnessDetect(const cv::Mat& gray_mat)
     {
         // 高斯模糊区域大小
         int gaussianSize = 3;
-
-        cv::Mat img;
-
-        if (srcImg.channels() != 1) // 如果输入的图像不是单通道灰度图，则转换为灰度图
-            cv::cvtColor(srcImg, img, cv::COLOR_BGR2GRAY);
-        else
-            img = srcImg;
-
+        assert(gray_mat.channels() == 1);
         cv::Mat out;
 
         // 进行高斯处理，处理的是指针img指向的内存，将处理后的数据交给out指针指向的内存，对每个像素周围gaussianSize*gaussianSize的区域进行高斯平滑处理（其实输入输出图像可以是相同的）
-        cv::GaussianBlur(img, out, cv::Size(gaussianSize, gaussianSize), 0, 0);
+        cv::GaussianBlur(gray_mat, out, cv::Size(gaussianSize, gaussianSize), 0, 0);
 
         unsigned long d_Fver = 0, d_Fhor = 0, d_Bver = 0, d_Bhor = 0; // 水平统计,垂直统计,F是原图,B是模糊图
         unsigned long vver = 0, vhor = 0;
@@ -191,16 +251,16 @@ class IQA
         double b_Fver = 0.0, b_Fhor = 0.0;
         double blur_F = 0.0;
 
-        for (int r = 0; r < img.rows; r++)
+        for (int r = 0; r < gray_mat.rows; r++)
         {
-            for (int c = 0; c < img.cols; c++)
+            for (int c = 0; c < gray_mat.cols; c++)
             {
                 // 垂直统计
                 if (r != 0)                                                      // 如果不是最上侧的点
-                    d_Fver = abs(img.at<uchar>(r, c) - img.at<uchar>(r - 1, c)); // 与上侧点的像素值相减
+                    d_Fver = abs(gray_mat.at<uchar>(r, c) - gray_mat.at<uchar>(r - 1, c)); // 与上侧点的像素值相减
                 // 水平统计
                 if (c != 0) // 如果不是最左侧的点，
-                    d_Fhor = abs(img.at<uchar>(r, c) - img.at<uchar>(r, c - 1));
+                    d_Fhor = abs(gray_mat.at<uchar>(r, c) - gray_mat.at<uchar>(r, c - 1));
 
                 // 垂直统计
                 if (r != 0) // 如果不是最上侧的点
@@ -221,10 +281,7 @@ class IQA
         b_Fver = (s_Fver - s_Vver) / ((double)s_Fver + 1);
         b_Fhor = (s_Fhor - s_Vhor) / ((double)s_Fhor + 1);
         blur_F = (b_Fver > b_Fhor) ? b_Fver : b_Fhor;
-
         return 1 - blur_F;
     }
-    private:
-    result_cb_t result_cb;//分析结果回调
 };
 #endif

@@ -32,8 +32,19 @@ public:
       * @return 是否解析成功
       */
     virtual bool inputRtp(bool is_udp, const char *data, size_t data_len) = 0;
-    using iqa_cb_t = std::function<void(const IQAResult &result)>;
-    virtual int32_t install_iqa(iqa_cb_t cb) {return -1;};
+
+    /**
+     * @brief 获取丢包率
+     * 
+     * @param minute1 1分钟丢包率
+     * @param minute5 5分钟丢包率
+     * @param total 累计丢包率
+     */
+  virtual void get_packet_loss(float & minute1, float & minute5, float &total){
+    minute1 = 0;
+    minute5 = 0;
+    total = 0;
+  }
 };
 
 }//namespace mediakit

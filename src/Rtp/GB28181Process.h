@@ -36,24 +36,16 @@ public:
      * @return 是否解析成功
      */
     bool inputRtp(bool, const char *data, size_t data_len) override;
-
-    int32_t install_iqa(iqa_cb_t cb)override{
-        iqa_cb = cb;
-        return 0;
-    }
-    // int32_t uninstall_iqa(){
-    //     iqa_ptr.reset();
-    //     decoder_ptr.reset();
-    //     packet_parser_ptr.reset();
-    //     return true;
-    // }
+  virtual void get_packet_loss(float & minute1, float & minute5, float &total){
+    minute1 = 0;
+    minute5 = 0;
+    total = recv_pkt_count == 0 ? (loss_pkt_count / recv_pkt_count) : 0;
+  }
 protected:
     void onRtpSorted(RtpPacket::Ptr rtp);
 
 private:
     void onRtpDecode(const Frame::Ptr &frame);
-    int32_t init_iqa(const Frame::Ptr &frame);
-    void iqa_exec(const Frame::Ptr &frame);
 
 private:
     MediaInfo _media_info;
@@ -62,14 +54,10 @@ private:
     std::shared_ptr<FILE> _save_file_ps;
     std::unordered_map<uint8_t, std::shared_ptr<RtpCodec> > _rtp_decoder;
     std::unordered_map<uint8_t, std::shared_ptr<RtpReceiverImp> > _rtp_receiver;
+    //用于计算丢包率
     uint64_t recv_pkt_count = 0;
     uint64_t loss_pkt_count = 0;
-
-    //为分析图像质量
-    iqa_cb_t iqa_cb;
-    std::shared_ptr<IQA> iqa_ptr;
-    cff::av_decoder_context_ptr_t decoder_ptr;
-    cff::avcodec_parser_ptr_t packet_parser_ptr;
+    int32_t next_seq = -1;
 };
 
 }//namespace mediakit
