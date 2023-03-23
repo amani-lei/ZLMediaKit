@@ -40,9 +40,8 @@ public:
      * @param minute5 5分钟丢包率
      * @param total 累计丢包率
      */
-  virtual void get_packet_loss(float & minute1, float & minute5, float &total){
+  virtual void get_packet_loss(float & minute1, float &total){
     minute1 = 0;
-    minute5 = 0;
     total = 0;
   }
 };

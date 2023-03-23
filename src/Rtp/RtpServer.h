@@ -63,7 +63,7 @@ public:
      */
     void setOnDetach(const std::function<void()> &cb);
     
-    virtual int32_t install_iqa(RtpProcess::iqa_cb_t cb, std::string& msg){
+    virtual int32_t install_iqa(iqa_cb_t cb, std::string& msg){
         assert(_rtp_process);
         return _rtp_process ? _rtp_process->install_iqa(cb, msg) : -1;
     }

@@ -61,15 +61,7 @@ public:
      * @brief 质量分析回调
      * 
      */
-    virtual int32_t install_iqa(iqa_cb_t cb, std::string& msg)override{
-        if(iqa_cb){
-            msg = "任务已存在";
-            return -1;
-        }
-        if(init_iqa(msg) < 0)return -1;
-        iqa_cb = cb;
-        return 0;
-    }
+    virtual int32_t install_iqa(iqa_cb_t cb, std::string& msg)override;
     /// SockInfo override
     std::string get_local_ip() override;
     uint16_t get_local_port() override;
@@ -123,10 +115,8 @@ protected:
 
     //为分析图像质量
     AVCodecID ffcodec_id = AV_CODEC_ID_NONE;
-    iqa_cb_t iqa_cb;
     std::shared_ptr<IQA> iqa_ptr;
-    cff::av_decoder_context_ptr_t decoder_ptr;
-    cff::avcodec_parser_ptr_t packet_parser_ptr;
+
 };
 
 }//namespace mediakit

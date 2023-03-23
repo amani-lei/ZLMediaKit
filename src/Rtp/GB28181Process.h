@@ -36,10 +36,9 @@ public:
      * @return 是否解析成功
      */
     bool inputRtp(bool, const char *data, size_t data_len) override;
-  virtual void get_packet_loss(float & minute1, float & minute5, float &total){
-    minute1 = 0;
-    minute5 = 0;
-    total = recv_pkt_count == 0 ? (loss_pkt_count / recv_pkt_count) : 0;
+  virtual void get_packet_loss(float & minute1, float &total) override {
+    minute1 = loss_rate_minu1;
+    total = (recv_pkt_count == 0) ? 0 : ((float)loss_pkt_count / (recv_pkt_count + loss_pkt_count));
   }
 protected:
     void onRtpSorted(RtpPacket::Ptr rtp);
@@ -55,6 +54,10 @@ private:
     std::unordered_map<uint8_t, std::shared_ptr<RtpCodec> > _rtp_decoder;
     std::unordered_map<uint8_t, std::shared_ptr<RtpReceiverImp> > _rtp_receiver;
     //用于计算丢包率
+    std::chrono::system_clock::time_point last_minu1;
+    uint64_t last_minu1_recv_pkt_count = 0;
+    uint64_t last_minu1_loss_pkt_count = 0;
+    float loss_rate_minu1 = 0.0f;
     uint64_t recv_pkt_count = 0;
     uint64_t loss_pkt_count = 0;
     int32_t next_seq = -1;

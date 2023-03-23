@@ -30,6 +30,7 @@ RUN apt-get update && \
          gcc \
          g++ \
          libavcodec-dev libavutil-dev libswscale-dev libresample-dev \
+         libopencv-dev \
          gdb && \
          apt-get autoremove -y && \
          apt-get clean -y && \
@@ -67,6 +68,7 @@ RUN apt-get update && \
          gcc \
          g++ \
          libavcodec-dev libavutil-dev libswscale-dev libresample-dev \
+         libopencv-dev \
          gdb netcat && \
          apt-get autoremove -y && \
          apt-get clean -y && \

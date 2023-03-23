@@ -7,6 +7,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/types_c.h>
 #include "libcff/cff.h"
+#include "Extension/Frame.h"
 #include <memory>
 #include <chrono>
 //流质量评价
@@ -15,8 +16,7 @@ struct IQAResult {
     std::string end_time;
 
     float loss_pkt_rate_total = 0;//总丢包率,越小越好
-    float loss_pkt_rate_min1 = 0;//1分钟丢包率,越小越好
-    float loss_pkt_rate_min5 = 0;//5分钟丢包率,越小越好
+    float loss_pkt_rate_minu1 = 0;//1分钟丢包率,越小越好
     
     float block_detect = 0;
     float brightness_detect = 0;
@@ -47,6 +47,7 @@ struct IQAResult {
     //     );
     // }
 };
+using iqa_cb_t = std::function<void(const IQAResult &result, int32_t err, const std::string msg)>;
 
 class IQA
 {
@@ -59,8 +60,75 @@ public:
     //     block_artifact = 0x08,
     //     all = 0xffff,
     // };
-    IQA() = default;
-    virtual ~IQA() = default;
+    IQA(iqa_cb_t cb):iqa_cb(cb){};
+    ~IQA(){
+        uninit();
+    }
+    int32_t init(AVCodecID codecID, std::string& msg){
+        begin_time = std::chrono::system_clock::now();
+        if (codecID == AVCodecID::AV_CODEC_ID_NONE) {
+            msg = "无法获取视频编码";
+            return -1;
+        }
+        //初始化解码器和解析器
+        decoder_ptr = std::make_shared<cff::av_decoder_context_t>(codecID);
+        assert(*(decoder_ptr));
+        if(!(*(decoder_ptr))){
+            msg = "创建解码器失败";
+            goto err;
+        }
+        packet_parser_ptr = std::make_shared<cff::avcodec_parser_t>(codecID);
+        if (packet_parser_ptr == nullptr) {
+            msg = "创建packet-parser失败";
+            goto err;
+        }
+        return 0;
+        err:
+        uninit();
+        return -1;
+    }
+    void uninit(){
+        iqa_cb = nullptr;
+        decoder_ptr.reset();
+        packet_parser_ptr.reset();
+    }
+    
+    int32_t push_frame(const mediakit::Frame::Ptr& frame, IQAResult &result, std::string &msg){
+        auto now = std::chrono::system_clock::now();
+        auto long_time = std::chrono::duration_cast<std::chrono::milliseconds>(begin_time - now).count();
+        if(long_time > 60 * 1000){
+            msg = "任务超时已停止";
+            return -1;
+        }
+        if (frame->getTrackType() != mediakit::TrackType::TrackVideo) {
+            msg = "内部错误, 无效的frame";
+            return -1;    
+        }
+        cff::avpacket_t pkt;
+        auto data = reinterpret_cast<uint8_t*>(frame->data());
+        uint32_t size = frame->size();
+        if(packet_parser_ptr->parse(*decoder_ptr, data, size, pkt) != 0){
+            msg = "packet解析失败";
+            return -1;
+        }
+        if(pkt.size() == 0){
+            //数据不足
+            return 1;
+        }
+        decoder_ptr->send_packet(pkt);
+        cff::avframe_t avframe;
+        int ret = decoder_ptr->recv_frame(avframe);
+        if(ret == AVERROR(EAGAIN)){
+            return 1;
+        }
+        if(ret < 0){
+            msg = "解码失败";
+            return ret;
+        }
+       
+
+        return parse_frame(avframe, result);
+}
     int32_t parse_frame(cff::avframe_t& frame, IQAResult& result) {
         auto begin = std::chrono::system_clock::now();
         //rgb mat
@@ -283,5 +351,10 @@ public:
         blur_F = (b_Fver > b_Fhor) ? b_Fver : b_Fhor;
         return 1 - blur_F;
     }
+    private:
+    std::chrono::system_clock::time_point begin_time;
+    iqa_cb_t iqa_cb;
+    cff::av_decoder_context_ptr_t decoder_ptr;
+    cff::avcodec_parser_ptr_t packet_parser_ptr;
 };
 #endif

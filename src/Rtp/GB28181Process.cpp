@@ -58,12 +58,15 @@ namespace mediakit {
         assert(sink);
         _media_info = media_info;
         _interface = sink;
+        last_minu1 = std::chrono::system_clock::now();
     }
 
     GB28181Process::~GB28181Process() {}
 
     void GB28181Process::onRtpSorted(RtpPacket::Ptr rtp) {
+        
         recv_pkt_count++;
+        last_minu1_recv_pkt_count++;
         int32_t seq = rtp->getSeq();
 
         if (next_seq < 0) {
@@ -71,12 +74,22 @@ namespace mediakit {
         }
         else if (next_seq > seq) {
             loss_pkt_count += seq + 65535 - next_seq;
+            last_minu1_loss_pkt_count += seq + 65535 - next_seq;
         }
         else {
             loss_pkt_count += seq - next_seq;
+            last_minu1_loss_pkt_count += seq - next_seq;
         }
         next_seq = seq + 1;
-        printf("seq = %d, loss = %.2f%%\n", seq, (loss_pkt_count * 100.0) / (float)(recv_pkt_count + loss_pkt_count));
+        loss_rate_minu1 = (float)last_minu1_loss_pkt_count / (last_minu1_loss_pkt_count + last_minu1_recv_pkt_count);
+        //计算周期丢包率
+        auto now = std::chrono::system_clock::now();
+        if(std::chrono::duration_cast<std::chrono::minutes>(now - last_minu1).count() > 0){
+            last_minu1 = now;
+            last_minu1_recv_pkt_count = 0;
+            last_minu1_loss_pkt_count = 0;
+        }
+
         _rtp_decoder[rtp->getHeader()->pt]->inputRtp(rtp, false);
     }
 
@@ -171,10 +184,6 @@ namespace mediakit {
     }
 
     void GB28181Process::onRtpDecode(const Frame::Ptr& frame) {
-        printf("onRtpDecode type = %d\n", frame->getTrackType());
-        if(frame->getTrackType() == TrackVideo){
-            printf("onRtpDecode->view \n");
-        }
         if (frame->getCodecId() != CodecInvalid) {
             // 这里不是ps或ts
             _interface->inputFrame(frame);
