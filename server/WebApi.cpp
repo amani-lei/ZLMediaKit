@@ -564,20 +564,20 @@ static void getArgsValue(const HttpAllArgs<ApiArgsType> &allArgs, const string &
     }
 }
 //处理质量分析请求
-int32_t StreamQualityAnalysis(const std::string& request_id, const string &stream_id, const string & result_hook, Json::Value &resutl_json) {
+int32_t StreamQualityAnalysis(const std::string& request_id, const string &stream_id, const string & result_hook, Json::Value &result_json) {
     lock_guard<recursive_mutex> lck(s_rtpServerMapMtx);
     auto it = s_rtpServerMap.find(stream_id);
     
     if (it == s_rtpServerMap.end()) {
-        resutl_json["code"] = -1;
-        resutl_json["msg"] = "请求的流不存在, 该功能只支持RTP Server";
+        result_json["code"] = -1;
+        result_json["msg"] = "请求的流不存在, 该功能只支持RTP Server";
         return -1;
     }
     assert(it->second);
     RtpServer::Ptr rtp = it->second;
     if(rtp == nullptr){
-        resutl_json["code"] = -1;
-        resutl_json["msg"] = "内部错误, 无法找到指定流";
+        result_json["code"] = -1;
+        result_json["msg"] = "内部错误, 无法找到指定流";
         return -1;
     }
     using namespace std::chrono;
@@ -590,27 +590,34 @@ int32_t StreamQualityAnalysis(const std::string& request_id, const string &strea
         if(ret == 0){
             //请求id
             args["request_id"] = request_id;
+            //流id
             args["stream_id"] = stream_id;
-             
-            //时间信息
+            //请求时间
             args["request_time"] = duration_cast<milliseconds>(req_time.time_since_epoch()).count();
+            //应答时间
             args["response_time"] = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-            //丢包率
+            //总丢包率
             args["loss_pkt_rate_total"] = result.loss_pkt_rate_total;
+            //最近1分钟的丢包率
             args["loss_pkt_rate_minu1"] = result.loss_pkt_rate_minu1;
+            
             //图像分析
+            //色块
             args["block_detect"] = result.block_detect;
+            //亮度
             args["brightness_detect"] = result.brightness_detect;
+            //雪花
             args["snow_noise_detect"] = result.snow_noise_detect;
+            //清晰度
             args["sharpness_detect"] = result.sharpness_detect;
         }
         iqaResult(result_hook, args);
     }, msg);
     if(ret < 0){
-        resutl_json["code"] = -1;
-        resutl_json["msg"] = msg;
+        result_json["code"] = -1;
+        result_json["msg"] = msg;
     }else{
-        resutl_json["code"] = 0;
+        result_json["code"] = 0;
     }
 
     return ret;
@@ -1670,9 +1677,9 @@ void installWebApi() {
         //流质量分析接口
         CHECK_SECRET();
         CHECK_ARGS("request_id", "stream_id", "result_hook");
-        auto request_id = allArgs["request_id"];
-        auto stream_id = allArgs["stream_id"];
-        auto result_hook = allArgs["result_hook"];
+        auto request_id = allArgs["request_id"];//请求id
+        auto stream_id = allArgs["stream_id"];//流id
+        auto result_hook = allArgs["result_hook"];//分析结果回调
         auto ret = StreamQualityAnalysis(request_id, stream_id, result_hook, val);
     });
 

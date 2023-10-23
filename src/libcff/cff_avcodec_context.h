@@ -24,7 +24,7 @@ namespace cff {
             if(p == nullptr){
                 return nullptr;
             }
-            if constexpr(IsDec){
+            if(IsDec){
                 avcodec_open2(p, c, nullptr);
             }
             return p;
@@ -48,7 +48,7 @@ namespace cff {
             if(p == nullptr){
                 return nullptr;
             }
-            if constexpr (IsDec){
+            if (IsDec){
                 int ret = avcodec_open2(p, c, nullptr);
             }
             return p;
