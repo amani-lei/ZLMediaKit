@@ -62,6 +62,7 @@ public:
      * 
      */
     virtual int32_t install_iqa(iqa_cb_t cb, std::string& msg)override;
+    virtual int32_t uninstall_iqa(std::string& msg)override;
     /// SockInfo override
     std::string get_local_ip() override;
     uint16_t get_local_port() override;

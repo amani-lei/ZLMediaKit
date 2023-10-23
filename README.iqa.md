@@ -3,14 +3,13 @@
 
 #### 请求
 
-
     GET&&POST
     /index/api/quality_analysis
 
 |参数名|必须的|类型|描述|
 |---|---|---|---|
 |m|是|install | uninstall|安装或写在分析任务|
-|request_id|是|字符串|请求开启质量分析的唯一请求id|
+|request_id|是|字符串|开启或关闭质量分析的请求id|
 |---|---|---|当m为install时, 下面参数是必须的|
 |stream_id|是|字符串|需要分析的流id|
 |result_hook|是|url, 需要做url编码|一个回调地址(post), 分析结果会通过该回调发送|
@@ -40,7 +39,6 @@
 |response_time|是|number|应答时间戳|
 |loss_pkt_rate_total|是|float|总丢包率0-1.0|
 |loss_pkt_rate_minu1|是|float|最近1分钟的丢包率0-1.0|
-
 |block_detect|是|float|色块检测|
 |brightness_detect|是|float|亮度检测|
 |snow_noise_detect|是|float|雪花检测|

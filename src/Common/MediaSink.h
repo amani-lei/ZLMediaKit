@@ -50,6 +50,7 @@ public:
     MediaSinkInterface() = default;
     ~MediaSinkInterface() override = default;
     virtual int32_t install_iqa(iqa_cb_t cb, std::string& msg) {msg = "功能未实现"; return -1;};
+    virtual int32_t uninstall_iqa(std::string& msg) {msg = "功能未实现"; return -1;};
 };
 
 /**

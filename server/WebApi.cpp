@@ -564,7 +564,7 @@ static void getArgsValue(const HttpAllArgs<ApiArgsType> &allArgs, const string &
     }
 }
 //处理质量分析请求
-int32_t StreamQualityAnalysis(const std::string& request_id, const string &stream_id, const string & result_hook, Json::Value &result_json) {
+int32_t StreamQualityAnalysis(const std::string & m, const std::string& request_id, const string &stream_id, const string & result_hook, Json::Value &result_json) {
     lock_guard<recursive_mutex> lck(s_rtpServerMapMtx);
     auto it = s_rtpServerMap.find(stream_id);
     
@@ -583,36 +583,43 @@ int32_t StreamQualityAnalysis(const std::string& request_id, const string &strea
     using namespace std::chrono;
     std::string msg;
     system_clock::time_point req_time = system_clock::now();
-    int32_t ret = rtp->install_iqa([req_time, request_id, stream_id, result_hook](const IQAResult &result, int32_t ret, const std::string & msg){
-        ArgsType args;
-        args["code"] = ret;
-        args["msg"] = msg;
-        if(ret == 0){
-            //请求id
-            args["request_id"] = request_id;
-            //流id
-            args["stream_id"] = stream_id;
-            //请求时间
-            args["request_time"] = duration_cast<milliseconds>(req_time.time_since_epoch()).count();
-            //应答时间
-            args["response_time"] = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-            //总丢包率
-            args["loss_pkt_rate_total"] = result.loss_pkt_rate_total;
-            //最近1分钟的丢包率
-            args["loss_pkt_rate_minu1"] = result.loss_pkt_rate_minu1;
-            
-            //图像分析
-            //色块
-            args["block_detect"] = result.block_detect;
-            //亮度
-            args["brightness_detect"] = result.brightness_detect;
-            //雪花
-            args["snow_noise_detect"] = result.snow_noise_detect;
-            //清晰度
-            args["sharpness_detect"] = result.sharpness_detect;
-        }
-        iqaResult(result_hook, args);
-    }, msg);
+    int32_t ret = 0;
+    if(m == "install"){
+        ret = rtp->install_iqa([req_time, request_id, stream_id, result_hook](const IQAResult &result, int32_t ret, const std::string & msg){
+            ArgsType args;
+            args["code"] = ret;
+            args["msg"] = msg;
+            if(ret == 0){
+                //请求id
+                args["request_id"] = request_id;
+                //流id
+                args["stream_id"] = stream_id;
+                //请求时间
+                args["request_time"] = duration_cast<milliseconds>(req_time.time_since_epoch()).count();
+                //应答时间
+                args["response_time"] = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+                //总丢包率
+                args["loss_pkt_rate_total"] = result.loss_pkt_rate_total;
+                //最近1分钟的丢包率
+                args["loss_pkt_rate_minu1"] = result.loss_pkt_rate_minu1;
+                
+                //图像分析
+                //色块
+                args["block_detect"] = result.block_detect;
+                //亮度
+                args["brightness_detect"] = result.brightness_detect;
+                //雪花
+                args["snow_noise_detect"] = result.snow_noise_detect;
+                //清晰度
+                args["sharpness_detect"] = result.sharpness_detect;
+            }
+            iqaResult(result_hook, args);
+        }, msg);
+    }else if(m == "uninstall"){
+        rtp->uninstall_iqa(msg);
+    }else{
+        msg = std::string("无效参数: ") + m;
+    }
     if(ret < 0){
         result_json["code"] = -1;
         result_json["msg"] = msg;
@@ -1676,11 +1683,18 @@ void installWebApi() {
     api_regist("/index/api/quality_analysis",[](API_ARGS_JSON){
         //流质量分析接口
         CHECK_SECRET();
-        CHECK_ARGS("request_id", "stream_id", "result_hook");
+        //常驻参数 请求类型, 流ID
+        CHECK_ARGS("m", "stream_id");
+        auto m = allArgs["m"];
+
+        if(m == "install"){
+            //安装分析时, 需要携带hook地址
+            CHECK_ARGS("request_id", "result_hook");
+        }
         auto request_id = allArgs["request_id"];//请求id
         auto stream_id = allArgs["stream_id"];//流id
         auto result_hook = allArgs["result_hook"];//分析结果回调
-        auto ret = StreamQualityAnalysis(request_id, stream_id, result_hook, val);
+        auto ret = StreamQualityAnalysis(m, request_id, stream_id, result_hook, val);
     });
 
     ////////////以下是注册的Hook API////////////

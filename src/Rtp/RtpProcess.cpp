@@ -309,7 +309,7 @@ float RtpProcess::getLossRate(MediaSource &sender, TrackType type) {
     }
     return geLostInterval() * 100 / expected;
 }
-    int32_t RtpProcess::install_iqa(iqa_cb_t cb, std::string& msg){
+int32_t RtpProcess::install_iqa(iqa_cb_t cb, std::string& msg){
     if(iqa_ptr){
         msg = "任务已存在";
         return -1;
@@ -324,6 +324,15 @@ float RtpProcess::getLossRate(MediaSource &sender, TrackType type) {
         return -1;
     }
     return 0;
+}
+
+int32_t RtpProcess::uninstall_iqa(std::string & msg){
+    if(!iqa_ptr){
+        msg = "质量分析未配置";
+        return -1;
+    }
+    msg = "质量分析卸载成功";
+    iqa_ptr.reset();
 }
 }//namespace mediakit
 #endif//defined(ENABLE_RTPPROXY)
